@@ -1,0 +1,1640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rubrics 评判系统</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<style>
+:root {
+  --bg: #f0f2f5;
+  --surface: #ffffff;
+  --border: #e0e0e0;
+  --text: #1a1a2e;
+  --text-secondary: #666;
+  --primary: #4f6ef7;
+  --primary-hover: #3b5de7;
+  --danger: #e74c3c;
+  --danger-bg: #fdecea;
+  --success: #27ae60;
+  --success-bg: #edfaf2;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+  --radius: 10px;
+  --radius-sm: 6px;
+  --transition: 0.2s ease;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  z-index: 100;
+}
+.header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header h1 .icon {
+  width: 28px;
+  height: 28px;
+  display: block;
+  border-radius: 7px;
+}
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.header-preset-select {
+  width: 180px;
+  padding: 5px 8px;
+  font-size: 12px;
+  background: #fff;
+}
+
+/* Buttons */
+.btn {
+  padding: 7px 16px;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-outline {
+  background: var(--surface);
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
+}
+.btn-outline:hover { background: #f0f3ff; }
+.btn-ghost { background: transparent; color: var(--text-secondary); }
+.btn-ghost:hover { background: #f5f5f5; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { background: #c0392b; }
+
+/* Main Layout */
+.main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  gap: 0;
+}
+
+/* Left Panel */
+.left-panel {
+  width: 440px;
+  min-width: 380px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+}
+.panel-section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.panel-section:last-child { border-bottom: none; }
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.section-title .count {
+  font-weight: 400;
+  color: #999;
+  font-size: 12px;
+}
+.scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Textareas & Inputs */
+textarea, input[type="text"], input[type="password"], select {
+  width: 100%;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  resize: vertical;
+  transition: border-color var(--transition);
+  background: #fafbfc;
+}
+textarea:focus, input:focus, select:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(79,110,247,0.1);
+}
+select {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  cursor: pointer;
+  appearance: auto;
+}
+textarea { min-height: 60px; line-height: 1.5; }
+.prompt-area { min-height: 80px; }
+.url-area { min-height: 50px; }
+
+/* Right Panel - URL Viewer */
+.right-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #e8eaed;
+  min-width: 400px;
+}
+.url-tabs {
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  flex-shrink: 0;
+  min-height: 40px;
+  align-items: stretch;
+}
+.url-tab {
+  padding: 9px 16px;
+  cursor: pointer;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  transition: all var(--transition);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.url-tab:hover { background: #f5f7fa; color: var(--text); }
+.url-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+.url-tab .tab-index {
+  background: #e8ecf1;
+  color: var(--text-secondary);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.url-tab.active .tab-index { background: #eef1ff; color: var(--primary); }
+.url-tab .close-tab {
+  margin-left: 4px;
+  font-size: 14px;
+  opacity: 0.4;
+  cursor: pointer;
+  line-height: 1;
+}
+.url-tab .close-tab:hover { opacity: 1; color: var(--danger); }
+.no-urls {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #aaa;
+  font-size: 14px;
+}
+.iframe-container {
+  flex: 1;
+  position: relative;
+  background: #fff;
+}
+.iframe-container iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+.iframe-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f6f8;
+  color: #aaa;
+  font-size: 13px;
+  pointer-events: none;
+}
+.iframe-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f8f9fa;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.iframe-toolbar .url-display {
+  flex: 1;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+  font-size: 11px;
+}
+.iframe-toolbar a,
+.iframe-toolbar button {
+  color: var(--primary);
+  text-decoration: none;
+  font-size: 12px;
+}
+.iframe-toolbar button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.iframe-toolbar a:hover,
+.iframe-toolbar button:hover { text-decoration: underline; }
+
+/* Rubrics Display */
+.rubrics-list {
+  list-style: none;
+  font-size: 13px;
+}
+.rubrics-list li {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 4px;
+  background: #f8f9fb;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.rubrics-list .r-num {
+  font-weight: 700;
+  color: var(--primary);
+  min-width: 22px;
+  flex-shrink: 0;
+}
+.rubrics-empty {
+  color: #bbb;
+  font-size: 13px;
+  text-align: center;
+  padding: 20px;
+}
+.rubrics-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #f8f9fb;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.rubrics-check-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.rubrics-check.pending {
+  color: var(--text-secondary);
+}
+.rubrics-check.allowed {
+  color: #197a40;
+  border-color: #b9e2c9;
+  background: var(--success-bg);
+}
+.rubrics-check.denied {
+  color: #b43529;
+  border-color: #f0b8b2;
+  background: var(--danger-bg);
+}
+.rubrics-check-reason {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Scoring Table */
+.scoring-table {
+  width: 100%;
+  font-size: 12px;
+  border-collapse: collapse;
+}
+.scoring-table th {
+  text-align: left;
+  padding: 6px 8px;
+  background: #f8f9fb;
+  border-bottom: 2px solid var(--border);
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 11px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.scoring-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid #eee;
+  vertical-align: top;
+}
+.scoring-table tr:hover td { background: #fafbfc; }
+.scoring-table .r-text {
+  min-width: 220px;
+}
+.rubric-edit {
+  width: 100%;
+  min-height: 52px;
+  padding: 6px 8px;
+  line-height: 1.5;
+  resize: vertical;
+  overflow: hidden;
+  font-family: inherit;
+  font-size: 12px;
+  background: #fff;
+}
+.rubric-row-delete {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  justify-content: center;
+  color: var(--danger);
+}
+.scoring-actions {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 10px;
+}
+.score-toggle {
+  display: inline-flex;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1.5px solid var(--border);
+}
+.score-btn {
+  padding: 3px 12px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  background: #fff;
+  transition: all var(--transition);
+}
+.score-btn.pass { border-right: 1px solid var(--border); }
+.score-btn.pass.active { background: var(--success); color: #fff; border-color: var(--success); }
+.score-btn.fail.active { background: var(--danger); color: #fff; border-color: var(--danger); }
+.reason-input {
+  width: 100%;
+  padding: 4px 8px;
+  border: 1.5px solid var(--danger);
+  border-radius: 4px;
+  font-size: 11px;
+  background: var(--danger-bg);
+  display: none;
+}
+.reason-input.visible { display: block; }
+.reason-input:focus { outline: none; border-color: var(--danger); }
+
+/* Bottom Bar */
+.bottom-bar {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 8px 16px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.bottom-bar .divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
+}
+.bottom-bar .status {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition);
+}
+.modal-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.modal {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  width: 520px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 24px;
+}
+.modal h2 {
+  font-size: 18px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.modal .form-group {
+  margin-bottom: 14px;
+}
+.modal label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.modal input, .modal textarea {
+  font-size: 13px;
+}
+.password-field {
+  position: relative;
+}
+.password-field input {
+  padding-right: 42px;
+}
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  width: 32px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+}
+.password-toggle:hover {
+  background: #eef1f5;
+  color: var(--text);
+}
+.password-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 10px 24px;
+  border-radius: 20px;
+  font-size: 13px;
+  z-index: 2000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.toast.show { opacity: 1; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c8ccd0; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #aab0b6; }
+
+/* Loading spinner */
+.spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid #ddd;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .main { flex-direction: column; }
+  .left-panel { width: 100%; min-width: 0; max-height: 50%; }
+  .right-panel { min-width: 0; min-height: 300px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <h1><img class="icon" src="icon.svg" alt="">Rubrics 评判系统</h1>
+  <div class="header-actions">
+    <select id="headerPresetSelect" class="header-preset-select" onchange="switchAiPreset(this.value)" title="快速切换 AI 配置预设"></select>
+    <button class="btn btn-outline btn-sm" onclick="clearAll()" title="清空所有数据">🔄 重置</button>
+    <button class="btn btn-outline btn-sm" onclick="openSettings()">⚙️ AI 设置</button>
+  </div>
+</header>
+
+<!-- Main Content -->
+<div class="main">
+  <!-- Left Panel -->
+  <div class="left-panel">
+    <!-- Prompt Section -->
+    <div class="panel-section">
+      <div class="section-title">📝 评分 Prompt</div>
+      <textarea class="prompt-area" id="promptInput" placeholder="在此输入评分 prompt（将被发送给 AI 转换为 Rubrics）..."></textarea>
+    </div>
+
+    <!-- URL List Section -->
+    <div class="panel-section">
+      <div class="section-title">🔗 URL 列表</div>
+      <textarea class="url-area" id="urlInput" placeholder="输入 URL 列表，格式：[url1,url2,...,urln]"></textarea>
+      <div style="display:flex;gap:6px;margin-top:6px;">
+        <button class="btn btn-primary btn-sm" onclick="convertRubrics()" id="btnConvert">🤖 转换 Rubrics</button>
+        <button class="btn btn-outline btn-sm" onclick="parseUrls()">🔍 解析 URL</button>
+      </div>
+    </div>
+
+    <!-- Rubrics Section -->
+    <div class="panel-section" style="max-height:300px;overflow-y:auto;">
+      <div class="section-title">
+        <span>📋 Rubrics</span>
+        <span class="count" id="rubricCount">0 条</span>
+      </div>
+      <div class="rubrics-check pending" id="rubricsCheckResult" role="status" aria-live="polite">
+        <span class="rubrics-check-icon">—</span>
+        <span class="rubrics-check-reason">尚未进行 AI 合规检查</span>
+      </div>
+      <div id="rubricsDisplay">
+        <div class="rubrics-empty">尚未生成 Rubrics，请点击"转换 Rubrics"或手动粘贴</div>
+      </div>
+      <textarea id="rubricsManualInput" placeholder="或在此手动粘贴 Rubrics（每行一条）..." style="margin-top:8px;min-height:120px;font-size:12px;" oninput="onManualRubricsInput()"></textarea>
+    </div>
+
+    <!-- Scoring Section -->
+    <div class="panel-section scroll-area" style="flex:1;min-height:120px;">
+      <div class="section-title">
+        <span>📊 评分</span>
+        <span class="count" id="scoreUrlLabel">未选择 URL</span>
+      </div>
+      <div class="rubrics-empty" id="scoringEmpty">请先解析 URL 并生成 Rubrics</div>
+      <div id="scoringContainer" style="overflow-x:auto;"></div>
+    </div>
+  </div>
+
+  <!-- Right Panel - URL Viewer -->
+  <div class="right-panel">
+    <div class="url-tabs" id="urlTabs">
+      <div class="no-urls" style="padding:12px;">等待解析 URL...</div>
+    </div>
+    <div class="iframe-toolbar" id="iframeToolbar" style="display:none;">
+      <span class="url-display" id="currentUrlDisplay"></span>
+      <button type="button" onclick="refreshCurrentUrl()" title="刷新当前网页">🔄 刷新</button>
+      <a href="#" id="openExternalLink" target="_blank" title="在新标签页打开">🔗 外部打开</a>
+    </div>
+    <div class="iframe-container" id="iframeContainer">
+      <div class="iframe-overlay">选择左侧 URL 标签以加载页面</div>
+      <iframe id="urlIframe" style="display:none;" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation"></iframe>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Bar -->
+<div class="bottom-bar">
+  <button class="btn btn-outline btn-sm" onclick="copyRubrics()">📋 复制 Rubrics</button>
+  <button class="btn btn-outline btn-sm" onclick="copyMatrix()">📊 复制打分矩阵</button>
+  <button class="btn btn-outline btn-sm" onclick="copyReasons()">📝 复制理由列表</button>
+  <span class="divider"></span>
+  <span class="status" id="statusBar">就绪</span>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <h2>⚙️ AI 模型设置</h2>
+    <div class="form-group">
+      <label>配置预设</label>
+      <div style="display:flex;gap:6px;">
+        <select id="settingPresetSelect" onchange="switchAiPreset(this.value, true)" style="flex:1;"></select>
+        <button class="btn btn-outline btn-sm" type="button" onclick="createAiPreset()">＋ 新建</button>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="deleteAiPreset()" style="color:var(--danger);">删除</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>预设名称</label>
+      <input type="text" id="settingPresetName" placeholder="例如：火山方舟 / OpenAI">
+    </div>
+    <div class="form-group">
+      <label>API Key</label>
+      <div class="password-field">
+        <input type="password" id="settingApiKey" placeholder="sk-...">
+        <button class="password-toggle" id="apiKeyVisibilityButton" type="button" onclick="toggleApiKeyVisibility()" title="显示 API Key" aria-label="显示 API Key" aria-pressed="false">👁</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>API 接口地址</label>
+      <input type="text" id="settingApiUrl" placeholder="https://api.openai.com/v1/chat/completions">
+    </div>
+    <div class="form-group">
+      <label>API 类型</label>
+      <select id="settingApiType" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:#fafbfc;">
+        <option value="openai-chat">OpenAI 兼容 (Chat Completions) — 适用 OpenAI / 火山方舟 / 硅基流动等</option>
+        <option value="responses">Responses API — 适用 火山方舟 v3 /responses / OpenAI Responses</option>
+      </select>
+      <div style="font-size:11px;color:#999;margin-top:4px;">💡 火山方舟用户：接口地址填 <code>https://ark.cn-beijing.volces.com/api/v3/responses</code>，类型选 "Responses API"</div>
+    </div>
+    <div class="form-group">
+      <label>模型名称</label>
+      <input type="text" id="settingModel" placeholder="gpt-4o">
+    </div>
+    <div class="form-group">
+      <label>System Prompt（系统级提示词）</label>
+      <textarea id="settingSystemPrompt" rows="4" placeholder="你是一个专业的评分标准制定专家...">你是一个专业的评分标准制定专家。请检查用户提供的 prompt 是否合规，并将其转换为清晰、可量化、可通过“是/否”判断的 Rubrics。仅输出合法 JSON，不要输出 Markdown 或其他文字，格式必须为：{"is_allow":true,"rubrics":["条目1","条目2"],"reason":""}。is_allow 表示是否合规；reason 表示判断理由，合规时可以为空；无论是否合规，rubrics 都必须提供有效条目。</textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeSettings()">取消</button>
+      <button class="btn btn-primary" onclick="saveSettings()">💾 保存设置</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== State ====================
+const AI_SETTINGS_STORAGE_KEY = 'rubric-ai-settings';
+const WORKSPACE_STORAGE_KEY = 'rubric-workspace';
+const AI_SETTINGS_SCHEMA_VERSION = 2;
+const WORKSPACE_SCHEMA_VERSION = 1;
+const WORKSPACE_SAVE_DELAY = 300;
+let workspaceSaveTimer = null;
+let workspaceStorageWarningShown = false;
+let workspaceIsCleared = false;
+
+const state = {
+  urls: [],
+  rubrics: [],
+  scores: {},       // { urlIndex: [{score:1|0, reason:''}, ...] }
+  activeUrlIndex: -1,
+  rubricsCheck: {
+    status: 'pending',
+    reason: '尚未进行 AI 合规检查'
+  },
+  aiSettings: {
+    apiKey: '',
+    apiUrl: 'https://api.openai.com/v1/chat/completions',
+    apiType: 'openai-chat',  // 'openai-chat' | 'responses'
+    model: 'gpt-4o',
+    systemPrompt: '你是一个专业的评分标准制定专家。请检查用户提供的 prompt 是否合规，并将其转换为清晰、可量化、可通过“是/否”判断的 Rubrics。仅输出合法 JSON，不要输出 Markdown 或其他文字，格式必须为：{"is_allow":true,"rubrics":["条目1","条目2"],"reason":""}。is_allow 表示是否合规；reason 表示判断理由，合规时可以为空；无论是否合规，rubrics 都必须提供有效条目。'
+  },
+  aiPresets: [],
+  activeAiPresetId: ''
+};
+
+// ==================== Init ====================
+function init() {
+  loadSettings();
+  applySettingsToForm();
+  renderPresetSelects();
+  restoreWorkspace();
+  bindPersistenceListeners();
+}
+
+// ==================== Settings ====================
+function loadSettings() {
+  try {
+    const saved = localStorage.getItem(AI_SETTINGS_STORAGE_KEY);
+    if (!saved) {
+      ensureAiPreset();
+      return;
+    }
+
+    const parsed = JSON.parse(saved);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      try { localStorage.removeItem(AI_SETTINGS_STORAGE_KEY); } catch (_) {}
+      return;
+    }
+    if (parsed.version === AI_SETTINGS_SCHEMA_VERSION && Array.isArray(parsed.presets)) {
+      state.aiPresets = parsed.presets.filter(preset => preset && typeof preset === 'object').map(normalizeAiPreset);
+      state.activeAiPresetId = typeof parsed.activePresetId === 'string' ? parsed.activePresetId : '';
+      ensureAiPreset();
+      applyActiveAiPreset();
+      return;
+    }
+
+    if (typeof parsed.apiKey === 'string') state.aiSettings.apiKey = parsed.apiKey;
+    if (typeof parsed.apiUrl === 'string') state.aiSettings.apiUrl = parsed.apiUrl;
+    if (parsed.apiType === 'openai-chat' || parsed.apiType === 'responses') {
+      state.aiSettings.apiType = parsed.apiType;
+    }
+    if (typeof parsed.model === 'string') state.aiSettings.model = parsed.model;
+    if (typeof parsed.systemPrompt === 'string') state.aiSettings.systemPrompt = parsed.systemPrompt;
+    ensureAiPreset();
+  } catch (err) {
+    console.warn('Unable to load saved AI settings. Using defaults.');
+    try { localStorage.removeItem(AI_SETTINGS_STORAGE_KEY); } catch (_) {}
+    ensureAiPreset();
+  }
+}
+
+function normalizeAiPreset(preset) {
+  return {
+    id: typeof preset.id === 'string' && preset.id ? preset.id : createPresetId(),
+    name: typeof preset.name === 'string' && preset.name.trim() ? preset.name.trim() : '未命名预设',
+    apiKey: typeof preset.apiKey === 'string' ? preset.apiKey : '',
+    apiUrl: typeof preset.apiUrl === 'string' ? preset.apiUrl : '',
+    apiType: preset.apiType === 'responses' ? 'responses' : 'openai-chat',
+    model: typeof preset.model === 'string' ? preset.model : '',
+    systemPrompt: typeof preset.systemPrompt === 'string' ? preset.systemPrompt : state.aiSettings.systemPrompt
+  };
+}
+
+function createPresetId() {
+  return `preset-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function ensureAiPreset() {
+  if (state.aiPresets.length === 0) {
+    state.aiPresets.push({ id: createPresetId(), name: '默认配置', ...state.aiSettings });
+  }
+  if (!state.aiPresets.some(preset => preset.id === state.activeAiPresetId)) {
+    state.activeAiPresetId = state.aiPresets[0].id;
+  }
+}
+
+function applyActiveAiPreset() {
+  const preset = state.aiPresets.find(item => item.id === state.activeAiPresetId);
+  if (!preset) return;
+  state.aiSettings = {
+    apiKey: preset.apiKey,
+    apiUrl: preset.apiUrl,
+    apiType: preset.apiType,
+    model: preset.model,
+    systemPrompt: preset.systemPrompt
+  };
+}
+
+function saveSettingsToStorage() {
+  try {
+    localStorage.setItem(AI_SETTINGS_STORAGE_KEY, JSON.stringify({
+      version: AI_SETTINGS_SCHEMA_VERSION,
+      activePresetId: state.activeAiPresetId,
+      presets: state.aiPresets
+    }));
+    return true;
+  } catch (err) {
+    console.warn('Unable to save AI settings to local storage.');
+    return false;
+  }
+}
+
+function applySettingsToForm() {
+  const activePreset = state.aiPresets.find(preset => preset.id === state.activeAiPresetId);
+  document.getElementById('settingPresetName').value = activePreset ? activePreset.name : '';
+  document.getElementById('settingApiKey').value = state.aiSettings.apiKey;
+  document.getElementById('settingApiUrl').value = state.aiSettings.apiUrl;
+  document.getElementById('settingApiType').value = state.aiSettings.apiType;
+  document.getElementById('settingModel').value = state.aiSettings.model;
+  document.getElementById('settingSystemPrompt').value = state.aiSettings.systemPrompt;
+}
+
+function renderPresetSelects() {
+  const options = state.aiPresets.map(preset => (
+    `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.name)}</option>`
+  )).join('');
+  ['headerPresetSelect', 'settingPresetSelect'].forEach(id => {
+    const select = document.getElementById(id);
+    select.innerHTML = options;
+    select.value = state.activeAiPresetId;
+  });
+}
+
+function switchAiPreset(presetId, keepModalOpen = false) {
+  if (!state.aiPresets.some(preset => preset.id === presetId)) return;
+  state.activeAiPresetId = presetId;
+  applyActiveAiPreset();
+  applySettingsToForm();
+  setApiKeyVisibility(false);
+  renderPresetSelects();
+  saveSettingsToStorage();
+  if (!keepModalOpen) showToast('✅ 已切换 AI 配置预设');
+}
+
+function createAiPreset() {
+  const preset = {
+    id: createPresetId(),
+    name: `新预设 ${state.aiPresets.length + 1}`,
+    ...state.aiSettings
+  };
+  state.aiPresets.push(preset);
+  state.activeAiPresetId = preset.id;
+  applyActiveAiPreset();
+  renderPresetSelects();
+  applySettingsToForm();
+  document.getElementById('settingPresetName').select();
+}
+
+function deleteAiPreset() {
+  if (state.aiPresets.length === 1) {
+    showToast('⚠️ 至少保留一个 AI 配置预设');
+    return;
+  }
+  const activePreset = state.aiPresets.find(preset => preset.id === state.activeAiPresetId);
+  if (!confirm(`确定删除预设“${activePreset ? activePreset.name : ''}”吗？`)) return;
+  state.aiPresets = state.aiPresets.filter(preset => preset.id !== state.activeAiPresetId);
+  state.activeAiPresetId = state.aiPresets[0].id;
+  applyActiveAiPreset();
+  renderPresetSelects();
+  applySettingsToForm();
+  saveSettingsToStorage();
+}
+
+function openSettings() {
+  renderPresetSelects();
+  applySettingsToForm();
+  setApiKeyVisibility(false);
+  document.getElementById('settingsModal').classList.add('open');
+}
+
+function toggleApiKeyVisibility() {
+  const input = document.getElementById('settingApiKey');
+  setApiKeyVisibility(input.type === 'password');
+}
+
+function setApiKeyVisibility(isVisible) {
+  const input = document.getElementById('settingApiKey');
+  const button = document.getElementById('apiKeyVisibilityButton');
+  input.type = isVisible ? 'text' : 'password';
+  button.textContent = isVisible ? '🙈' : '👁';
+  button.title = isVisible ? '隐藏 API Key' : '显示 API Key';
+  button.setAttribute('aria-label', button.title);
+  button.setAttribute('aria-pressed', String(isVisible));
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('open');
+}
+
+function saveSettings() {
+  const activePreset = state.aiPresets.find(preset => preset.id === state.activeAiPresetId);
+  state.aiSettings.apiKey = document.getElementById('settingApiKey').value.trim();
+  state.aiSettings.apiUrl = document.getElementById('settingApiUrl').value.trim();
+  state.aiSettings.apiType = document.getElementById('settingApiType').value;
+  state.aiSettings.model = document.getElementById('settingModel').value.trim();
+  state.aiSettings.systemPrompt = document.getElementById('settingSystemPrompt').value.trim();
+
+  if (activePreset) {
+    activePreset.name = document.getElementById('settingPresetName').value.trim() || '未命名预设';
+    Object.assign(activePreset, state.aiSettings);
+  }
+
+  if (saveSettingsToStorage()) {
+    renderPresetSelects();
+    closeSettings();
+    showToast('✅ AI 设置已保存');
+  } else {
+    showToast('⚠️ 设置已应用，但浏览器未能持久保存');
+  }
+}
+
+// Close modal on overlay click
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('modal-overlay') && e.target.classList.contains('open')) {
+    closeSettings();
+  }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('settingsModal').classList.contains('open')) {
+    closeSettings();
+  }
+});
+
+// ==================== Workspace Persistence ====================
+function loadWorkspaceFromStorage() {
+  try {
+    const saved = localStorage.getItem(WORKSPACE_STORAGE_KEY);
+    if (!saved) return { prompt: '', urlText: '' };
+
+    const parsed = JSON.parse(saved);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      try { localStorage.removeItem(WORKSPACE_STORAGE_KEY); } catch (_) {}
+      return { prompt: '', urlText: '' };
+    }
+    if (parsed.version !== undefined && parsed.version !== WORKSPACE_SCHEMA_VERSION) {
+      return { prompt: '', urlText: '' };
+    }
+
+    return {
+      prompt: typeof parsed.prompt === 'string' ? parsed.prompt : '',
+      urlText: typeof parsed.urlText === 'string' ? parsed.urlText : ''
+    };
+  } catch (err) {
+    console.warn('Unable to load saved workspace. Starting with an empty workspace.');
+    try { localStorage.removeItem(WORKSPACE_STORAGE_KEY); } catch (_) {}
+    return { prompt: '', urlText: '' };
+  }
+}
+
+function saveWorkspaceToStorage() {
+  clearTimeout(workspaceSaveTimer);
+  workspaceSaveTimer = null;
+  if (workspaceIsCleared) return true;
+
+  try {
+    localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify({
+      version: WORKSPACE_SCHEMA_VERSION,
+      prompt: document.getElementById('promptInput').value,
+      urlText: document.getElementById('urlInput').value
+    }));
+    return true;
+  } catch (err) {
+    console.warn('Unable to save workspace to local storage.');
+    if (!workspaceStorageWarningShown) {
+      workspaceStorageWarningShown = true;
+      showToast('⚠️ 浏览器未能保存 Prompt 和 URL');
+    }
+    return false;
+  }
+}
+
+function scheduleWorkspaceSave() {
+  workspaceIsCleared = false;
+  clearTimeout(workspaceSaveTimer);
+  workspaceSaveTimer = setTimeout(saveWorkspaceToStorage, WORKSPACE_SAVE_DELAY);
+}
+
+function bindPersistenceListeners() {
+  const promptInput = document.getElementById('promptInput');
+  const urlInput = document.getElementById('urlInput');
+
+  [promptInput, urlInput].forEach(input => {
+    input.addEventListener('input', scheduleWorkspaceSave);
+    input.addEventListener('change', saveWorkspaceToStorage);
+    input.addEventListener('blur', saveWorkspaceToStorage);
+  });
+  window.addEventListener('pagehide', saveWorkspaceToStorage);
+}
+
+function restoreWorkspace() {
+  const workspace = loadWorkspaceFromStorage();
+  document.getElementById('promptInput').value = workspace.prompt;
+  document.getElementById('urlInput').value = workspace.urlText;
+
+  const urls = extractUrls(workspace.urlText);
+  if (urls.length === 0) return;
+
+  applyUrls(urls);
+  setStatus(`已恢复 ${urls.length} 个 URL`);
+}
+
+// ==================== URL Parsing ====================
+function extractUrls(rawText) {
+  const urlRegex = /https?:\/\/[^\s,\[\]"']+/g;
+  return rawText.match(urlRegex) || [];
+}
+
+function applyUrls(urls) {
+  state.urls = urls;
+  state.activeUrlIndex = 0;
+  state.scores = {};
+  state.urls.forEach((_, i) => {
+    state.scores[i] = state.rubrics.map(() => ({ score: 1, reason: '' }));
+  });
+
+  renderUrlTabs();
+  loadUrl(0);
+  renderScoring();
+}
+
+function parseUrls() {
+  saveWorkspaceToStorage();
+  const raw = document.getElementById('urlInput').value.trim();
+  if (!raw) { showToast('⚠️ 请先输入 URL 列表'); return; }
+
+  const matches = extractUrls(raw);
+  if (matches.length === 0) {
+    showToast('⚠️ 未检测到有效 URL，请检查格式');
+    return;
+  }
+
+  applyUrls(matches);
+  showToast(`✅ 已解析 ${state.urls.length} 个 URL`);
+  setStatus(`已加载 ${state.urls.length} 个 URL`);
+}
+
+function renderUrlTabs() {
+  const container = document.getElementById('urlTabs');
+  if (state.urls.length === 0) {
+    container.innerHTML = '<div class="no-urls" style="padding:12px;">等待解析 URL...</div>';
+    return;
+  }
+  
+  container.innerHTML = state.urls.map((url, i) => {
+    const shortUrl = url.replace(/^https?:\/\//, '').substring(0, 30);
+    const activeClass = i === state.activeUrlIndex ? ' active' : '';
+    return `<button class="url-tab${activeClass}" onclick="loadUrl(${i})" title="${escapeHtml(url)}">
+      <span class="tab-index">${i+1}</span>${escapeHtml(shortUrl)}${url.length>35?'…':''}
+    </button>`;
+  }).join('');
+}
+
+function loadUrl(index) {
+  if (index < 0 || index >= state.urls.length) return;
+  
+  state.activeUrlIndex = index;
+  const url = state.urls[index];
+  
+  // Update tabs
+  renderUrlTabs();
+  
+  // Update iframe
+  const iframe = document.getElementById('urlIframe');
+  const overlay = document.querySelector('.iframe-overlay');
+  const toolbar = document.getElementById('iframeToolbar');
+  const urlDisplay = document.getElementById('currentUrlDisplay');
+  const externalLink = document.getElementById('openExternalLink');
+  
+  iframe.style.display = 'block';
+  overlay.style.display = 'none';
+  toolbar.style.display = 'flex';
+  urlDisplay.textContent = url;
+  externalLink.href = url;
+  
+  // Set sandbox to allow more interaction
+  iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation');
+  iframe.src = url;
+  
+  // Update scoring header
+  document.getElementById('scoreUrlLabel').textContent = `URL ${index + 1} / ${state.urls.length}`;
+  renderScoring();
+}
+
+function refreshCurrentUrl() {
+  if (state.activeUrlIndex < 0 || state.activeUrlIndex >= state.urls.length) return;
+
+  const iframe = document.getElementById('urlIframe');
+  iframe.src = state.urls[state.activeUrlIndex];
+  showToast('🔄 当前网页已刷新');
+  setStatus(`已刷新 URL ${state.activeUrlIndex + 1}`);
+}
+
+// ==================== Rubrics Conversion ====================
+async function convertRubrics() {
+  saveWorkspaceToStorage();
+  const prompt = document.getElementById('promptInput').value.trim();
+  if (!prompt) { showToast('⚠️ 请先输入 Prompt'); return; }
+  
+  if (!state.aiSettings.apiKey) { showToast('⚠️ 请先在 AI 设置中配置 API Key'); return; }
+  if (!state.aiSettings.apiUrl) { showToast('⚠️ 请先在 AI 设置中配置 API 地址'); return; }
+
+  const btn = document.getElementById('btnConvert');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 转换中...';
+  setStatus('正在调用 AI 转换 Rubrics...');
+
+  try {
+    const apiType = state.aiSettings.apiType || 'openai-chat';
+    let requestBody;
+
+    if (apiType === 'responses') {
+      // Responses API format (火山方舟 /v3/responses, OpenAI Responses)
+      requestBody = {
+        model: state.aiSettings.model,
+        input: prompt,
+        instructions: state.aiSettings.systemPrompt
+      };
+    } else {
+      // OpenAI Chat Completions format (default, 兼容绝大多数 API)
+      requestBody = {
+        model: state.aiSettings.model,
+        messages: [
+          { role: 'system', content: state.aiSettings.systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.3
+      };
+    }
+
+    const response = await fetch(state.aiSettings.apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${state.aiSettings.apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`API 请求失败 (${response.status}): ${errText}`);
+    }
+
+    const data = await response.json();
+    let content = '';
+    
+    // Try multiple response formats (from most specific to least)
+    // 1. OpenAI Chat Completions: choices[0].message.content
+    if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
+      content = data.choices[0].message.content;
+    }
+    // 2. Responses API with reasoning: find message-type item in output array
+    else if (data.output && Array.isArray(data.output)) {
+      const msgItem = data.output.find(o => o.type === 'message');
+      if (msgItem && msgItem.content && Array.isArray(msgItem.content)) {
+        const textItem = msgItem.content.find(c => c.type === 'output_text' || c.text);
+        content = textItem ? (textItem.text || '') : '';
+      }
+      // Fallback: try output[0].content[0].text (no reasoning present)
+      if (!content && data.output[0] && data.output[0].content && data.output[0].content[0]) {
+        const c = data.output[0].content[0];
+        content = c.text || c.value || '';
+      }
+    }
+    // 3. Simple content field
+    else if (typeof data.content === 'string') {
+      content = data.content;
+    }
+    // 4. Fallback
+    else {
+      content = JSON.stringify(data);
+    }
+
+    if (!content) {
+      throw new Error('AI 返回内容为空，请检查 API 类型设置是否匹配');
+    }
+
+    const aiResult = parseAiRubricsResponse(content);
+    setRubrics(aiResult.rubrics);
+    syncManualRubricsInput();
+    state.rubricsCheck = {
+      status: aiResult.isAllow ? 'allowed' : 'denied',
+      reason: aiResult.reason
+    };
+    renderRubricsCheck();
+    showToast(aiResult.isAllow ? '✅ Rubrics 合规检查通过' : '❌ Rubrics 合规检查未通过');
+    setStatus(aiResult.isAllow ? 'Rubrics 合规检查通过' : 'Rubrics 合规检查未通过');
+  } catch (err) {
+    console.error('AI conversion error:', err);
+    state.rubricsCheck = { status: 'denied', reason: err.message };
+    renderRubricsCheck();
+    showToast('❌ 转换失败: ' + err.message);
+    setStatus('转换失败');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🤖 转换 Rubrics';
+  }
+}
+
+function parseAiRubricsResponse(content) {
+  let jsonText = content.trim();
+  const fencedMatch = jsonText.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fencedMatch) jsonText = fencedMatch[1].trim();
+
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch (_) {
+    throw new Error('AI 返回格式错误：无法解析为 JSON');
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('AI 返回格式错误：最外层必须是 JSON 对象');
+  }
+  if (typeof parsed.is_allow !== 'boolean') {
+    throw new Error('AI 返回格式错误：is_allow 必须是布尔值');
+  }
+  if (!Array.isArray(parsed.rubrics) || !parsed.rubrics.every(rubric => typeof rubric === 'string')) {
+    throw new Error('AI 返回格式错误：rubrics 必须是字符串数组');
+  }
+  if (typeof parsed.reason !== 'string') {
+    throw new Error('AI 返回格式错误：reason 必须是字符串');
+  }
+
+  const rubrics = parsed.rubrics.map(rubric => rubric.trim()).filter(Boolean);
+  if (rubrics.length === 0) {
+    throw new Error('AI 返回格式错误：rubrics 中没有有效条目');
+  }
+
+  return {
+    isAllow: parsed.is_allow,
+    rubrics,
+    reason: parsed.reason.trim()
+  };
+}
+
+function parseRubricsText(text) {
+  // Try to parse numbered list: 1. xxx, 2. xxx, etc.
+  const lines = text.split('\n').filter(l => l.trim());
+  const rubricPattern = /^\s*(?:\d+[\.\)、]\s*|[-•*]\s*)(.+)/;
+  const rubrics = [];
+  
+  for (const line of lines) {
+    const match = line.match(rubricPattern);
+    if (match) {
+      rubrics.push(match[1].trim());
+    }
+  }
+
+  if (rubrics.length === 0) {
+    // Fallback: treat each non-empty line as a rubric
+    lines.forEach(l => {
+      const cleaned = l.replace(/^[\d\.\)、\s-•*]+/, '').trim();
+      if (cleaned) rubrics.push(cleaned);
+    });
+  }
+
+  if (rubrics.length > 0) setRubrics(rubrics);
+}
+
+function setRubrics(rubrics) {
+  const previousRubrics = state.rubrics.slice();
+  const previousScores = state.scores;
+  const exactMatches = new Map();
+  const matchedPreviousIndexes = new Set();
+  rubrics.forEach((rubric, rubricIndex) => {
+    const previousIndex = previousRubrics.findIndex((previousRubric, index) => (
+      previousRubric === rubric && !matchedPreviousIndexes.has(index)
+    ));
+    if (previousIndex >= 0) {
+      exactMatches.set(rubricIndex, previousIndex);
+      matchedPreviousIndexes.add(previousIndex);
+    }
+  });
+  state.rubrics = rubrics;
+  state.urls.forEach((_, i) => {
+    const urlScores = previousScores[i] || [];
+    const usedIndexes = new Set(matchedPreviousIndexes);
+    state.scores[i] = state.rubrics.map((rubric, rubricIndex) => {
+      let previousIndex = exactMatches.has(rubricIndex) ? exactMatches.get(rubricIndex) : -1;
+
+      if (previousIndex < 0 && rubricIndex < urlScores.length && !usedIndexes.has(rubricIndex)) {
+        previousIndex = rubricIndex;
+      }
+
+      if (previousIndex >= 0 && urlScores[previousIndex]) {
+        usedIndexes.add(previousIndex);
+        return { ...urlScores[previousIndex] };
+      }
+      return { score: 1, reason: '' };
+    });
+  });
+  renderRubrics();
+  renderScoring();
+}
+
+function onManualRubricsInput() {
+  const text = document.getElementById('rubricsManualInput').value;
+  if (text.trim()) {
+    parseRubricsText(text);
+  }
+}
+
+function renderRubrics() {
+  const container = document.getElementById('rubricsDisplay');
+  const countEl = document.getElementById('rubricCount');
+  
+  if (state.rubrics.length === 0) {
+    container.innerHTML = '<div class="rubrics-empty">尚未生成 Rubrics，请点击"转换 Rubrics"或手动粘贴</div>';
+    countEl.textContent = '0 条';
+    return;
+  }
+
+  countEl.textContent = `${state.rubrics.length} 条`;
+  container.innerHTML = `<ul class="rubrics-list">${
+    state.rubrics.map((r, i) => `<li><span class="r-num">${i+1}.</span><span>${escapeHtml(r)}</span></li>`).join('')
+  }</ul>`;
+}
+
+function renderRubricsCheck() {
+  const container = document.getElementById('rubricsCheckResult');
+  const status = state.rubricsCheck.status;
+  const isAllowed = status === 'allowed';
+  const isDenied = status === 'denied';
+  const icon = isAllowed ? '✓' : (isDenied ? '✕' : '—');
+  container.className = `rubrics-check ${status}`;
+  container.innerHTML = `<span class="rubrics-check-icon">${icon}</span><span class="rubrics-check-reason">${escapeHtml(state.rubricsCheck.reason)}</span>`;
+}
+
+// ==================== Scoring ====================
+function renderScoring() {
+  const container = document.getElementById('scoringContainer');
+  const emptyEl = document.getElementById('scoringEmpty');
+  const urlLabel = document.getElementById('scoreUrlLabel');
+
+  if (state.urls.length === 0) {
+    container.innerHTML = '';
+    emptyEl.style.display = 'block';
+    urlLabel.textContent = '未选择 URL';
+    return;
+  }
+
+  if (state.rubrics.length === 0) {
+    emptyEl.style.display = 'none';
+    urlLabel.textContent = `URL ${state.activeUrlIndex + 1} / ${state.urls.length}`;
+    container.innerHTML = '<div class="rubrics-empty">暂无 Rubric</div><div class="scoring-actions"><button class="btn btn-outline btn-sm" onclick="addRubric()">＋ 增加一条 Rubric</button></div>';
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  const idx = state.activeUrlIndex;
+  if (idx < 0) {
+    container.innerHTML = '<div class="rubrics-empty">请选择一个 URL</div>';
+    return;
+  }
+
+  const scores = state.scores[idx] || state.rubrics.map(() => ({ score: 1, reason: '' }));
+  urlLabel.textContent = `URL ${idx + 1} / ${state.urls.length}`;
+
+  container.innerHTML = `<table class="scoring-table">
+    <thead><tr><th style="width:30px;">#</th><th>Rubric（可直接修改）</th><th style="width:80px;">通过</th><th>不通过理由</th><th style="width:36px;"></th></tr></thead>
+    <tbody>${state.rubrics.map((r, ri) => {
+      const s = scores[ri] || { score: 1, reason: '' };
+      return `<tr>
+        <td style="font-weight:600;color:var(--primary);">${ri+1}</td>
+        <td class="r-text"><textarea class="rubric-edit" rows="2"
+          oninput="updateRubricText(${ri},this.value);autoResizeRubric(this)"
+          onblur="finishRubricEdit()">${escapeHtml(r)}</textarea></td>
+        <td>
+          <div class="score-toggle">
+            <button class="score-btn pass${s.score===1?' active':''}" onclick="setScore(${idx},${ri},1)">✓ 1</button>
+            <button class="score-btn fail${s.score===0?' active':''}" onclick="setScore(${idx},${ri},0)">✗ 0</button>
+          </div>
+        </td>
+        <td>
+          <input type="text" class="reason-input${s.score===0?' visible':''}" 
+            id="reason_${idx}_${ri}" 
+            value="${escapeHtml(s.reason||'')}" 
+            placeholder="不通过理由..." 
+            oninput="updateReason(${idx},${ri},this.value)">
+        </td>
+        <td><button class="btn btn-ghost rubric-row-delete" onclick="deleteRubric(${ri})" title="删除此 Rubric">×</button></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table><div class="scoring-actions"><button class="btn btn-outline btn-sm" onclick="addRubric()">＋ 增加一条 Rubric</button></div>`;
+
+  container.querySelectorAll('.rubric-edit').forEach(autoResizeRubric);
+}
+
+function updateRubricText(rubricIdx, text) {
+  state.rubrics[rubricIdx] = text;
+  syncManualRubricsInput();
+}
+
+function finishRubricEdit() {
+  renderRubrics();
+}
+
+function addRubric() {
+  state.rubrics.push('新 Rubric');
+  state.urls.forEach((_, urlIdx) => {
+    if (!state.scores[urlIdx]) state.scores[urlIdx] = [];
+    state.scores[urlIdx].push({ score: 1, reason: '' });
+  });
+  syncManualRubricsInput();
+  renderRubrics();
+  renderScoring();
+  const editors = document.querySelectorAll('.rubric-edit');
+  const lastEditor = editors[editors.length - 1];
+  if (lastEditor) {
+    lastEditor.focus();
+    lastEditor.select();
+  }
+}
+
+function deleteRubric(rubricIdx) {
+  state.rubrics.splice(rubricIdx, 1);
+  state.urls.forEach((_, urlIdx) => {
+    if (state.scores[urlIdx]) state.scores[urlIdx].splice(rubricIdx, 1);
+  });
+  syncManualRubricsInput();
+  renderRubrics();
+  renderScoring();
+}
+
+function syncManualRubricsInput() {
+  document.getElementById('rubricsManualInput').value = state.rubrics.map((rubric, index) => `${index + 1}. ${rubric}`).join('\n');
+}
+
+function autoResizeRubric(textarea) {
+  textarea.style.height = 'auto';
+  textarea.style.height = `${Math.max(52, textarea.scrollHeight)}px`;
+}
+
+function setScore(urlIdx, rubricIdx, score) {
+  if (!state.scores[urlIdx]) {
+    state.scores[urlIdx] = state.rubrics.map(() => ({ score: 1, reason: '' }));
+  }
+  if (!state.scores[urlIdx][rubricIdx]) {
+    state.scores[urlIdx][rubricIdx] = { score: 1, reason: '' };
+  }
+  state.scores[urlIdx][rubricIdx].score = score;
+  if (score === 1) {
+    state.scores[urlIdx][rubricIdx].reason = '';
+  }
+  renderScoring();
+  setStatus(`URL${urlIdx+1} Rubric${rubricIdx+1}: ${score===1?'通过':'不通过'}`);
+}
+
+function updateReason(urlIdx, rubricIdx, reason) {
+  if (!state.scores[urlIdx]) {
+    state.scores[urlIdx] = state.rubrics.map(() => ({ score: 1, reason: '' }));
+  }
+  if (!state.scores[urlIdx][rubricIdx]) {
+    state.scores[urlIdx][rubricIdx] = { score: 1, reason: '' };
+  }
+  state.scores[urlIdx][rubricIdx].reason = reason;
+}
+
+// ==================== Copy Functions ====================
+function copyRubrics() {
+  if (state.rubrics.length === 0) { showToast('⚠️ 没有可复制的 Rubrics'); return; }
+  const text = state.rubrics.map((r, i) => `${i+1}. ${r}`).join('\n');
+  copyToClipboard(text);
+  showToast('✅ Rubrics 已复制到剪贴板');
+}
+
+function copyMatrix() {
+  if (state.urls.length === 0 || state.rubrics.length === 0) {
+    showToast('⚠️ 请先解析 URL 并生成 Rubrics');
+    return;
+  }
+  
+  const matrix = state.urls.map((_, ui) => {
+    const scores = state.scores[ui] || state.rubrics.map(() => ({ score: 1, reason: '' }));
+    return `[${scores.map(s => s.score).join(',')}]`;
+  });
+  
+  const text = `[${matrix.join(',\n')}]`;
+  copyToClipboard(text);
+  showToast('✅ 打分矩阵已复制到剪贴板');
+}
+
+function copyReasons() {
+  if (state.urls.length === 0 || state.rubrics.length === 0) {
+    showToast('⚠️ 请先解析 URL 并生成 Rubrics');
+    return;
+  }
+  
+  const reasons = [];
+  state.urls.forEach((_, ui) => {
+    const scores = state.scores[ui] || [];
+    const groupedReasons = new Map();
+
+    scores.forEach((s, ri) => {
+      if (s.score === 0 && s.reason) {
+        if (!groupedReasons.has(s.reason)) groupedReasons.set(s.reason, []);
+        groupedReasons.get(s.reason).push(ri + 1);
+      }
+    });
+
+    groupedReasons.forEach((rubricIndexes, reason) => {
+      reasons.push(`${reasons.length + 1}. 第${ui + 1}个页面 -> 第${rubricIndexes.join(',')}条 rubrics->${reason}`);
+    });
+  });
+  
+  if (reasons.length === 0) { showToast('⚠️ 没有不通过的理由可复制'); return; }
+  
+  copyToClipboard(reasons.join('\n'));
+  showToast(`✅ ${reasons.length} 条理由已复制到剪贴板`);
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text);
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+}
+
+// ==================== Clear All ====================
+function clearAll() {
+  if (!confirm('确定要清空 Prompt、URL、Rubrics 和评分数据吗？AI 设置将保留。')) return;
+  clearTimeout(workspaceSaveTimer);
+  workspaceSaveTimer = null;
+  workspaceIsCleared = true;
+  try { localStorage.removeItem(WORKSPACE_STORAGE_KEY); } catch (err) {
+    console.warn('Unable to remove saved workspace from local storage.');
+  }
+
+  state.urls = [];
+  state.rubrics = [];
+  state.scores = {};
+  state.activeUrlIndex = -1;
+  state.rubricsCheck = { status: 'pending', reason: '尚未进行 AI 合规检查' };
+  
+  document.getElementById('promptInput').value = '';
+  document.getElementById('urlInput').value = '';
+  document.getElementById('rubricsManualInput').value = '';
+  
+  renderUrlTabs();
+  renderRubricsCheck();
+  renderRubrics();
+  renderScoring();
+  
+  const iframe = document.getElementById('urlIframe');
+  iframe.style.display = 'none';
+  iframe.src = '';
+  document.querySelector('.iframe-overlay').style.display = 'flex';
+  document.getElementById('iframeToolbar').style.display = 'none';
+  document.getElementById('scoringContainer').innerHTML = '';
+  document.getElementById('scoringEmpty').style.display = 'block';
+  document.getElementById('scoreUrlLabel').textContent = '未选择 URL';
+  
+  showToast('🔄 已清空所有数据');
+  setStatus('就绪');
+}
+
+// ==================== Helpers ====================
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toast._timeout);
+  toast._timeout = setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+function setStatus(msg) {
+  document.getElementById('statusBar').textContent = msg;
+}
+
+// Initialize
+init();
+</script>
+</body>
+</html>
