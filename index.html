@@ -112,8 +112,8 @@ body {
 
 /* Left Panel */
 .left-panel {
-  width: 440px;
-  min-width: 380px;
+  width: 680px;
+  min-width: 600px;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border);
@@ -383,6 +383,10 @@ textarea { min-height: 60px; line-height: 1.5; }
 .scoring-table .r-text {
   min-width: 220px;
 }
+.scoring-table .reason-cell {
+  width: 280px;
+  min-width: 280px;
+}
 .rubric-edit {
   width: 100%;
   min-height: 52px;
@@ -426,10 +430,14 @@ textarea { min-height: 60px; line-height: 1.5; }
 .score-btn.fail.active { background: var(--danger); color: #fff; border-color: var(--danger); }
 .reason-input {
   width: 100%;
+  min-height: 52px;
   padding: 4px 8px;
   border: 1.5px solid var(--danger);
   border-radius: 4px;
   font-size: 11px;
+  line-height: 1.5;
+  resize: vertical;
+  overflow: hidden;
   background: var(--danger-bg);
   display: none;
 }
@@ -1410,7 +1418,7 @@ function renderScoring() {
   urlLabel.textContent = `URL ${idx + 1} / ${state.urls.length}`;
 
   container.innerHTML = `<table class="scoring-table">
-    <thead><tr><th style="width:30px;">#</th><th>Rubric（可直接修改）</th><th style="width:80px;">通过</th><th>不通过理由</th><th style="width:36px;"></th></tr></thead>
+    <thead><tr><th style="width:30px;">#</th><th>Rubric（可直接修改）</th><th style="width:80px;">通过</th><th class="reason-cell">不通过理由</th><th style="width:36px;"></th></tr></thead>
     <tbody>${state.rubrics.map((r, ri) => {
       const s = scores[ri] || { score: 1, reason: '' };
       return `<tr>
@@ -1424,12 +1432,11 @@ function renderScoring() {
             <button class="score-btn fail${s.score===0?' active':''}" onclick="setScore(${idx},${ri},0)">✗ 0</button>
           </div>
         </td>
-        <td>
-          <input type="text" class="reason-input${s.score===0?' visible':''}" 
+        <td class="reason-cell">
+          <textarea class="reason-input${s.score===0?' visible':''}" rows="2"
             id="reason_${idx}_${ri}" 
-            value="${escapeHtml(s.reason||'')}" 
             placeholder="不通过理由..." 
-            oninput="updateReason(${idx},${ri},this.value)">
+            oninput="updateReason(${idx},${ri},this.value);autoResizeReason(this)">${escapeHtml(s.reason||'')}</textarea>
         </td>
         <td><button class="btn btn-ghost rubric-row-delete" onclick="deleteRubric(${ri})" title="删除此 Rubric">×</button></td>
       </tr>`;
@@ -1437,6 +1444,7 @@ function renderScoring() {
   </table><div class="scoring-actions"><button class="btn btn-outline btn-sm" onclick="addRubric()">＋ 增加一条 Rubric</button></div>`;
 
   container.querySelectorAll('.rubric-edit').forEach(autoResizeRubric);
+  container.querySelectorAll('.reason-input.visible').forEach(autoResizeReason);
 }
 
 function updateRubricText(rubricIdx, text) {
@@ -1484,6 +1492,11 @@ function autoResizeRubric(textarea) {
   textarea.style.height = `${Math.max(52, textarea.scrollHeight)}px`;
 }
 
+function autoResizeReason(textarea) {
+  textarea.style.height = 'auto';
+  textarea.style.height = `${Math.max(52, textarea.scrollHeight)}px`;
+}
+
 function setScore(urlIdx, rubricIdx, score) {
   if (!state.scores[urlIdx]) {
     state.scores[urlIdx] = state.rubrics.map(() => ({ score: 1, reason: '' }));
@@ -1512,7 +1525,9 @@ function updateReason(urlIdx, rubricIdx, reason) {
 // ==================== Copy Functions ====================
 function copyRubrics() {
   if (state.rubrics.length === 0) { showToast('⚠️ 没有可复制的 Rubrics'); return; }
-  const text = state.rubrics.map((r, i) => `${i+1}. ${r}`).join('\n');
+  const text = state.rubrics
+    .map((rubric, index) => `${index + 1}. ${rubric.replace(/["'“”‘’]/g, '')}`)
+    .join('\n');
   copyToClipboard(text);
   showToast('✅ Rubrics 已复制到剪贴板');
 }
@@ -1528,7 +1543,7 @@ function copyMatrix() {
     return `[${scores.map(s => s.score).join(',')}]`;
   });
   
-  const text = `[${matrix.join(',\n')}]`;
+  const text = `[${matrix.join(',')}]`;
   copyToClipboard(text);
   showToast('✅ 打分矩阵已复制到剪贴板');
 }
@@ -1551,9 +1566,12 @@ function copyReasons() {
       }
     });
 
-    groupedReasons.forEach((rubricIndexes, reason) => {
-      reasons.push(`${reasons.length + 1}. 第${ui + 1}个页面 -> 第${rubricIndexes.join(',')}条 rubrics->${reason}`);
-    });
+    const pageReasons = Array.from(groupedReasons, ([reason, rubricIndexes]) =>
+      `第${rubricIndexes.join(',')}条 rubrics->${reason}`
+    );
+    if (pageReasons.length > 0) {
+      reasons.push(`${reasons.length + 1}. 第${ui + 1}个页面 -> ${pageReasons.join('；')}`);
+    }
   });
   
   if (reasons.length === 0) { showToast('⚠️ 没有不通过的理由可复制'); return; }
