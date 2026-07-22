@@ -74,6 +74,62 @@ body {
   background: #fff;
 }
 
+/* Workspace Tabs */
+.workspace-tabs-bar {
+  height: 42px;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 5px 12px 0;
+  background: #e8eaed;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.workspace-tabs {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+  overflow-x: auto;
+}
+.workspace-tab {
+  min-width: 120px;
+  max-width: 230px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: #d9dde3;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.workspace-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+  font-weight: 600;
+}
+.workspace-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.workspace-tab-close {
+  border: 0;
+  background: transparent;
+  color: #888;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+.workspace-tab-close:hover { color: var(--danger); }
+.workspace-tab-actions { display: flex; align-items: center; gap: 4px; }
+
 /* Buttons */
 .btn {
   padding: 7px 16px;
@@ -586,6 +642,10 @@ textarea { min-height: 60px; line-height: 1.5; }
 
 /* Responsive */
 @media (max-width: 900px) {
+  .header { padding: 0 10px; }
+  .header h1 { font-size: 0; }
+  .header-actions { overflow-x: auto; }
+  .header-preset-select { width: 130px; }
   .main { flex-direction: column; }
   .left-panel { width: 100%; min-width: 0; max-height: 50%; }
   .right-panel { min-width: 0; min-height: 300px; }
@@ -599,10 +659,18 @@ textarea { min-height: 60px; line-height: 1.5; }
   <h1><img class="icon" src="icon.svg" alt="">Rubrics 评判系统</h1>
   <div class="header-actions">
     <select id="headerPresetSelect" class="header-preset-select" onchange="switchAiPreset(this.value)" title="快速切换 AI 配置预设"></select>
-    <button class="btn btn-outline btn-sm" onclick="clearAll()" title="清空所有数据">🔄 重置</button>
     <button class="btn btn-outline btn-sm" onclick="openSettings()">⚙️ AI 设置</button>
   </div>
 </header>
+
+<div class="workspace-tabs-bar">
+  <div class="workspace-tabs" id="workspaceTabs"></div>
+  <div class="workspace-tab-actions">
+    <button class="btn btn-ghost btn-sm" type="button" onclick="addWorkspaceTab()" title="新建标签页">＋</button>
+    <button class="btn btn-outline btn-sm" type="button" onclick="document.getElementById('csvFileInput').click()">导入 CSV</button>
+    <input id="csvFileInput" type="file" accept=".csv,text/csv" hidden onchange="importCsvFile(this.files[0]);this.value=''">
+  </div>
+</div>
 
 <!-- Main Content -->
 <div class="main">
@@ -660,6 +728,8 @@ textarea { min-height: 60px; line-height: 1.5; }
       <span class="url-display" id="currentUrlDisplay"></span>
       <button type="button" onclick="refreshCurrentUrl()" title="刷新当前网页">🔄 刷新</button>
       <a href="#" id="openExternalLink" target="_blank" title="在新标签页打开">🔗 外部打开</a>
+      <button type="button" onclick="copyCurrentLink()" title="复制当前展示链接">📋 复制链接</button>
+      <button type="button" onclick="downloadCurrentHtml()" title="下载当前网页 HTML">⬇ 下载代码</button>
     </div>
     <div class="iframe-container" id="iframeContainer">
       <div class="iframe-overlay">选择左侧 URL 标签以加载页面</div>
@@ -670,6 +740,8 @@ textarea { min-height: 60px; line-height: 1.5; }
 
 <!-- Bottom Bar -->
 <div class="bottom-bar">
+  <button class="btn btn-danger btn-sm" onclick="clearCurrentWorkspace()">清空工作区</button>
+  <span class="divider"></span>
   <button class="btn btn-outline btn-sm" onclick="copyRubrics()">📋 复制 Rubrics</button>
   <button class="btn btn-outline btn-sm" onclick="copyMatrix()">📊 复制打分矩阵</button>
   <button class="btn btn-outline btn-sm" onclick="copyReasons()">📝 复制理由列表</button>
@@ -735,13 +807,15 @@ textarea { min-height: 60px; line-height: 1.5; }
 const AI_SETTINGS_STORAGE_KEY = 'rubric-ai-settings';
 const WORKSPACE_STORAGE_KEY = 'rubric-workspace';
 const AI_SETTINGS_SCHEMA_VERSION = 2;
-const WORKSPACE_SCHEMA_VERSION = 1;
+const WORKSPACE_SCHEMA_VERSION = 2;
 const WORKSPACE_SAVE_DELAY = 300;
 let workspaceSaveTimer = null;
 let workspaceStorageWarningShown = false;
 let workspaceIsCleared = false;
 
 const state = {
+  workspaces: [],
+  activeWorkspaceId: '',
   urls: [],
   rubrics: [],
   scores: {},       // { urlIndex: [{score:1|0, reason:''}, ...] }
@@ -985,25 +1059,32 @@ document.addEventListener('keydown', function(e) {
 function loadWorkspaceFromStorage() {
   try {
     const saved = localStorage.getItem(WORKSPACE_STORAGE_KEY);
-    if (!saved) return { prompt: '', urlText: '' };
+    if (!saved) return null;
 
     const parsed = JSON.parse(saved);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       try { localStorage.removeItem(WORKSPACE_STORAGE_KEY); } catch (_) {}
-      return { prompt: '', urlText: '' };
+      return null;
     }
-    if (parsed.version !== undefined && parsed.version !== WORKSPACE_SCHEMA_VERSION) {
-      return { prompt: '', urlText: '' };
+    if (parsed.version === WORKSPACE_SCHEMA_VERSION && Array.isArray(parsed.workspaces)) {
+      return parsed;
     }
-
-    return {
-      prompt: typeof parsed.prompt === 'string' ? parsed.prompt : '',
-      urlText: typeof parsed.urlText === 'string' ? parsed.urlText : ''
-    };
+    if (typeof parsed.prompt === 'string' || typeof parsed.urlText === 'string') {
+      return {
+        version: WORKSPACE_SCHEMA_VERSION,
+        activeWorkspaceId: 'workspace-migrated',
+        workspaces: [createWorkspace({
+          id: 'workspace-migrated',
+          prompt: typeof parsed.prompt === 'string' ? parsed.prompt : '',
+          urlText: typeof parsed.urlText === 'string' ? parsed.urlText : ''
+        })]
+      };
+    }
+    return null;
   } catch (err) {
     console.warn('Unable to load saved workspace. Starting with an empty workspace.');
     try { localStorage.removeItem(WORKSPACE_STORAGE_KEY); } catch (_) {}
-    return { prompt: '', urlText: '' };
+    return null;
   }
 }
 
@@ -1013,10 +1094,11 @@ function saveWorkspaceToStorage() {
   if (workspaceIsCleared) return true;
 
   try {
+    captureActiveWorkspace();
     localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify({
       version: WORKSPACE_SCHEMA_VERSION,
-      prompt: document.getElementById('promptInput').value,
-      urlText: document.getElementById('urlInput').value
+      activeWorkspaceId: state.activeWorkspaceId,
+      workspaces: state.workspaces
     }));
     return true;
   } catch (err) {
@@ -1033,6 +1115,11 @@ function scheduleWorkspaceSave() {
   workspaceIsCleared = false;
   clearTimeout(workspaceSaveTimer);
   workspaceSaveTimer = setTimeout(saveWorkspaceToStorage, WORKSPACE_SAVE_DELAY);
+  const workspace = state.workspaces.find(item => item.id === state.activeWorkspaceId);
+  if (workspace) {
+    workspace.title = getWorkspaceTitle(document.getElementById('promptInput').value);
+    renderWorkspaceTabs();
+  }
 }
 
 function bindPersistenceListeners() {
@@ -1048,15 +1135,123 @@ function bindPersistenceListeners() {
 }
 
 function restoreWorkspace() {
-  const workspace = loadWorkspaceFromStorage();
+  const saved = loadWorkspaceFromStorage();
+  state.workspaces = saved && saved.workspaces.length
+    ? saved.workspaces.map(createWorkspace)
+    : [createWorkspace()];
+  state.activeWorkspaceId = saved && state.workspaces.some(item => item.id === saved.activeWorkspaceId)
+    ? saved.activeWorkspaceId
+    : state.workspaces[0].id;
+  applyActiveWorkspace();
+  renderWorkspaceTabs();
+}
+
+function createWorkspace(source = {}) {
+  const rubrics = Array.isArray(source.rubrics) ? source.rubrics.filter(item => typeof item === 'string') : [];
+  const urls = Array.isArray(source.urls) ? source.urls.filter(item => typeof item === 'string') : extractUrls(source.urlText || '');
+  return {
+    id: source.id || `workspace-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title: source.title || getWorkspaceTitle(source.prompt, source.id),
+    prompt: typeof source.prompt === 'string' ? source.prompt : '',
+    urlText: typeof source.urlText === 'string' ? source.urlText : (urls.length ? JSON.stringify(urls) : ''),
+    urls,
+    rubrics,
+    scores: normalizeScores(source.scores, urls.length, rubrics.length),
+    activeUrlIndex: urls.length ? Math.min(Math.max(Number(source.activeUrlIndex) || 0, 0), urls.length - 1) : -1,
+    rubricsCheck: source.rubricsCheck || { status: 'pending', reason: '尚未进行 AI 合规检查' },
+    note: typeof source.note === 'string' ? source.note : ''
+  };
+}
+
+function getWorkspaceTitle(prompt, fallback = '新任务') {
+  const text = typeof prompt === 'string' ? prompt.trim().replace(/\s+/g, ' ') : '';
+  return text ? text.slice(0, 24) : fallback;
+}
+
+function normalizeScores(scores, urlCount, rubricCount) {
+  const normalized = {};
+  for (let urlIndex = 0; urlIndex < urlCount; urlIndex++) {
+    const sourceScores = scores && (scores[urlIndex] || scores[String(urlIndex)]);
+    normalized[urlIndex] = Array.from({ length: rubricCount }, (_, rubricIndex) => {
+      const item = Array.isArray(sourceScores) ? sourceScores[rubricIndex] : null;
+      if (item && typeof item === 'object') return { score: item.score === 0 ? 0 : 1, reason: String(item.reason || '') };
+      return { score: item === 0 ? 0 : 1, reason: '' };
+    });
+  }
+  return normalized;
+}
+
+function captureActiveWorkspace() {
+  const workspace = state.workspaces.find(item => item.id === state.activeWorkspaceId);
+  if (!workspace) return;
+  workspace.prompt = document.getElementById('promptInput').value;
+  workspace.urlText = document.getElementById('urlInput').value;
+  workspace.urls = state.urls.slice();
+  workspace.rubrics = state.rubrics.slice();
+  workspace.scores = JSON.parse(JSON.stringify(state.scores));
+  workspace.activeUrlIndex = state.activeUrlIndex;
+  workspace.rubricsCheck = { ...state.rubricsCheck };
+  workspace.title = getWorkspaceTitle(workspace.prompt);
+}
+
+function applyActiveWorkspace() {
+  const workspace = state.workspaces.find(item => item.id === state.activeWorkspaceId);
+  if (!workspace) return;
   document.getElementById('promptInput').value = workspace.prompt;
   document.getElementById('urlInput').value = workspace.urlText;
+  state.urls = workspace.urls.slice();
+  state.rubrics = workspace.rubrics.slice();
+  state.scores = JSON.parse(JSON.stringify(workspace.scores));
+  state.activeUrlIndex = workspace.activeUrlIndex;
+  state.rubricsCheck = { ...workspace.rubricsCheck };
+  syncManualRubricsInput();
+  renderRubricsCheck();
+  renderRubrics();
+  renderUrlTabs();
+  if (state.activeUrlIndex >= 0) loadUrl(state.activeUrlIndex);
+  else resetUrlViewer();
+  renderScoring();
+}
 
-  const urls = extractUrls(workspace.urlText);
-  if (urls.length === 0) return;
+function renderWorkspaceTabs() {
+  document.getElementById('workspaceTabs').innerHTML = state.workspaces.map((workspace, index) => `
+    <button class="workspace-tab${workspace.id === state.activeWorkspaceId ? ' active' : ''}" onclick="switchWorkspace('${workspace.id}')" title="${escapeHtml(workspace.title)}">
+      <span class="workspace-tab-label">${index + 1}. ${escapeHtml(workspace.title)}</span>
+      ${state.workspaces.length > 1 ? `<span class="workspace-tab-close" role="button" onclick="event.stopPropagation();closeWorkspace('${workspace.id}')" title="关闭标签页">×</span>` : ''}
+    </button>`).join('');
+}
 
-  applyUrls(urls);
-  setStatus(`已恢复 ${urls.length} 个 URL`);
+function switchWorkspace(workspaceId) {
+  if (workspaceId === state.activeWorkspaceId) return;
+  captureActiveWorkspace();
+  state.activeWorkspaceId = workspaceId;
+  applyActiveWorkspace();
+  renderWorkspaceTabs();
+  saveWorkspaceToStorage();
+}
+
+function addWorkspaceTab() {
+  captureActiveWorkspace();
+  const workspace = createWorkspace();
+  state.workspaces.push(workspace);
+  state.activeWorkspaceId = workspace.id;
+  workspaceIsCleared = false;
+  applyActiveWorkspace();
+  renderWorkspaceTabs();
+  saveWorkspaceToStorage();
+}
+
+function closeWorkspace(workspaceId) {
+  if (state.workspaces.length === 1) return;
+  captureActiveWorkspace();
+  const index = state.workspaces.findIndex(item => item.id === workspaceId);
+  state.workspaces.splice(index, 1);
+  if (state.activeWorkspaceId === workspaceId) {
+    state.activeWorkspaceId = state.workspaces[Math.max(0, index - 1)].id;
+    applyActiveWorkspace();
+  }
+  renderWorkspaceTabs();
+  saveWorkspaceToStorage();
 }
 
 // ==================== URL Parsing ====================
@@ -1148,6 +1343,195 @@ function refreshCurrentUrl() {
   iframe.src = state.urls[state.activeUrlIndex];
   showToast('🔄 当前网页已刷新');
   setStatus(`已刷新 URL ${state.activeUrlIndex + 1}`);
+}
+
+function getCurrentUrl() {
+  return state.activeUrlIndex >= 0 ? state.urls[state.activeUrlIndex] : '';
+}
+
+function copyCurrentLink() {
+  const url = getCurrentUrl();
+  if (!url) { showToast('⚠️ 当前没有展示链接'); return; }
+  copyToClipboard(url);
+  showToast('✅ 当前链接已复制');
+}
+
+async function downloadCurrentHtml() {
+  const url = getCurrentUrl();
+  if (!url) { showToast('⚠️ 当前没有展示链接'); return; }
+  setStatus('正在下载当前网页 HTML...');
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const html = await response.text();
+    const pageTitle = getPageTitle(html);
+    const blobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = getHtmlFilename(pageTitle, url);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(blobUrl);
+    showToast('✅ HTML 文件已下载');
+    setStatus('下载完成');
+  } catch (err) {
+    console.error('HTML download error:', err);
+    showToast('❌ 下载失败，目标网站可能禁止跨域读取');
+    setStatus('下载失败：目标网站禁止跨域读取');
+  }
+}
+
+function getPageTitle(html) {
+  try {
+    const documentTitle = new DOMParser().parseFromString(html, 'text/html').title.trim();
+    if (documentTitle) return documentTitle;
+  } catch (_) {}
+
+  try {
+    return document.getElementById('urlIframe').contentDocument.title.trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+function getHtmlFilename(pageTitle, url) {
+  const safeTitle = pageTitle
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+    .replace(/[. ]+$/g, '')
+    .trim();
+  if (safeTitle) return `${safeTitle}.html`;
+
+  try {
+    const parsed = new URL(url);
+    const name = parsed.pathname.split('/').filter(Boolean).pop() || 'index';
+    return `${name.replace(/\.html?$/i, '') || 'index'}.html`;
+  } catch (_) {
+    return 'index.html';
+  }
+}
+
+// ==================== CSV Import ====================
+async function importCsvFile(file) {
+  if (!file) return;
+  try {
+    const buffer = await file.arrayBuffer();
+    const text = decodeCsvBuffer(buffer);
+    const rows = parseCsv(text);
+    if (rows.length < 2) throw new Error('CSV 中没有数据行');
+    const headers = rows[0].map(header => header.replace(/^\uFEFF/, '').trim());
+    const required = ['prompt', 'repo', 'rubrics', '评分', '备注'];
+    const indexes = Object.fromEntries(required.map(name => [name, headers.indexOf(name)]));
+    const missing = required.filter(name => indexes[name] < 0);
+    if (missing.length) throw new Error(`缺少列：${missing.join('、')}`);
+
+    const imported = rows.slice(1).filter(row => row.some(cell => cell.trim())).map((row, index) => {
+      const prompt = row[indexes.prompt] || '';
+      const urls = parseCsvUrls(row[indexes.repo] || '');
+      const rubrics = parseCsvRubrics(row[indexes.rubrics] || '');
+      const rawScores = parseCsvJson(row[indexes['评分']] || '', []);
+      const note = row[indexes['备注']] || '';
+      const scores = scoresFromCsv(rawScores, urls.length, rubrics.length, note);
+      return createWorkspace({
+        title: getWorkspaceTitle(prompt, `CSV ${index + 1}`),
+        prompt,
+        urlText: JSON.stringify(urls),
+        urls,
+        rubrics,
+        scores,
+        note
+      });
+    });
+    if (!imported.length) throw new Error('CSV 中没有可导入的数据');
+
+    captureActiveWorkspace();
+    const replaceEmpty = state.workspaces.length === 1 && isWorkspaceEmpty(state.workspaces[0]);
+    state.workspaces = replaceEmpty ? imported : state.workspaces.concat(imported);
+    state.activeWorkspaceId = imported[0].id;
+    workspaceIsCleared = false;
+    applyActiveWorkspace();
+    renderWorkspaceTabs();
+    saveWorkspaceToStorage();
+    showToast(`✅ 已导入 ${imported.length} 个标签页`);
+    setStatus(`已从 ${file.name} 导入 ${imported.length} 条记录`);
+  } catch (err) {
+    console.error('CSV import error:', err);
+    showToast(`❌ CSV 导入失败：${err.message}`);
+  }
+}
+
+function decodeCsvBuffer(buffer) {
+  const utf8 = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+  const replacementCount = (utf8.match(/\uFFFD/g) || []).length;
+  if (replacementCount === 0) return utf8;
+  try { return new TextDecoder('gb18030').decode(buffer); } catch (_) { return utf8; }
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let quoted = false;
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index];
+    if (quoted) {
+      if (char === '"' && text[index + 1] === '"') { field += '"'; index++; }
+      else if (char === '"') quoted = false;
+      else field += char;
+    } else if (char === '"') quoted = true;
+    else if (char === ',') { row.push(field); field = ''; }
+    else if (char === '\n') { row.push(field.replace(/\r$/, '')); rows.push(row); row = []; field = ''; }
+    else field += char;
+  }
+  if (field || row.length) { row.push(field.replace(/\r$/, '')); rows.push(row); }
+  return rows;
+}
+
+function parseCsvJson(text, fallback) {
+  if (!text.trim()) return fallback;
+  try { return JSON.parse(text); } catch (_) { return fallback; }
+}
+
+function parseCsvUrls(text) {
+  const parsed = parseCsvJson(text, null);
+  if (Array.isArray(parsed)) return parsed.filter(item => typeof item === 'string');
+  return extractUrls(text);
+}
+
+function parseCsvRubrics(text) {
+  const parsed = parseCsvJson(text, null);
+  if (Array.isArray(parsed)) {
+    const list = Array.isArray(parsed[0]) ? parsed[0] : parsed;
+    return list.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean);
+  }
+  return text.split(/\r?\n/).map(item => item.replace(/^\s*(?:\d+[.、)]|[-*])\s*/, '').trim()).filter(Boolean);
+}
+
+function scoresFromCsv(rawScores, urlCount, rubricCount, note) {
+  const matrix = Array.isArray(rawScores) && Array.isArray(rawScores[0]) ? rawScores : [rawScores];
+  const scores = normalizeScores(matrix, urlCount, rubricCount);
+  applyCsvReasons(scores, note);
+  return scores;
+}
+
+function applyCsvReasons(scores, note) {
+  const pagePattern = /(?:^|[；;\n])\s*\d+\.\s*第(\d+)个页面\s*->\s*([\s\S]*?)(?=(?:[；;\n]\s*\d+\.\s*第\d+个页面\s*->)|$)/g;
+  let pageMatch;
+  while ((pageMatch = pagePattern.exec(note))) {
+    const urlIndex = Number(pageMatch[1]) - 1;
+    const reasonPattern = /第([\d,，]+)条\s*rubrics\s*->\s*([^；;\n]+)/gi;
+    let reasonMatch;
+    while ((reasonMatch = reasonPattern.exec(pageMatch[2]))) {
+      reasonMatch[1].split(/[,，]/).forEach(value => {
+        const rubricIndex = Number(value) - 1;
+        if (scores[urlIndex] && scores[urlIndex][rubricIndex]) scores[urlIndex][rubricIndex].reason = reasonMatch[2].trim();
+      });
+    }
+  }
+}
+
+function isWorkspaceEmpty(workspace) {
+  return !workspace.prompt && !workspace.urlText && workspace.rubrics.length === 0;
 }
 
 // ==================== Rubrics Conversion ====================
@@ -1352,6 +1736,7 @@ function setRubrics(rubrics) {
   });
   renderRubrics();
   renderScoring();
+  scheduleWorkspaceSave();
 }
 
 function onManualRubricsInput() {
@@ -1450,6 +1835,7 @@ function renderScoring() {
 function updateRubricText(rubricIdx, text) {
   state.rubrics[rubricIdx] = text;
   syncManualRubricsInput();
+  scheduleWorkspaceSave();
 }
 
 function finishRubricEdit() {
@@ -1465,6 +1851,7 @@ function addRubric() {
   syncManualRubricsInput();
   renderRubrics();
   renderScoring();
+  scheduleWorkspaceSave();
   const editors = document.querySelectorAll('.rubric-edit');
   const lastEditor = editors[editors.length - 1];
   if (lastEditor) {
@@ -1481,6 +1868,7 @@ function deleteRubric(rubricIdx) {
   syncManualRubricsInput();
   renderRubrics();
   renderScoring();
+  scheduleWorkspaceSave();
 }
 
 function syncManualRubricsInput() {
@@ -1509,6 +1897,7 @@ function setScore(urlIdx, rubricIdx, score) {
     state.scores[urlIdx][rubricIdx].reason = '';
   }
   renderScoring();
+  scheduleWorkspaceSave();
   setStatus(`URL${urlIdx+1} Rubric${rubricIdx+1}: ${score===1?'通过':'不通过'}`);
 }
 
@@ -1520,6 +1909,7 @@ function updateReason(urlIdx, rubricIdx, reason) {
     state.scores[urlIdx][rubricIdx] = { score: 1, reason: '' };
   }
   state.scores[urlIdx][rubricIdx].reason = reason;
+  scheduleWorkspaceSave();
 }
 
 // ==================== Copy Functions ====================
@@ -1594,15 +1984,12 @@ function copyToClipboard(text) {
   }
 }
 
-// ==================== Clear All ====================
-function clearAll() {
-  if (!confirm('确定要清空 Prompt、URL、Rubrics 和评分数据吗？AI 设置将保留。')) return;
+// ==================== Clear Workspace ====================
+function clearCurrentWorkspace() {
+  if (!confirm('确定清空当前标签页的 Prompt、URL、Rubrics 和评分数据吗？')) return;
   clearTimeout(workspaceSaveTimer);
   workspaceSaveTimer = null;
-  workspaceIsCleared = true;
-  try { localStorage.removeItem(WORKSPACE_STORAGE_KEY); } catch (err) {
-    console.warn('Unable to remove saved workspace from local storage.');
-  }
+  workspaceIsCleared = false;
 
   state.urls = [];
   state.rubrics = [];
@@ -1619,6 +2006,16 @@ function clearAll() {
   renderRubrics();
   renderScoring();
   
+  resetUrlViewer();
+  captureActiveWorkspace();
+  renderWorkspaceTabs();
+  saveWorkspaceToStorage();
+
+  showToast('已清空当前工作区');
+  setStatus('就绪');
+}
+
+function resetUrlViewer() {
   const iframe = document.getElementById('urlIframe');
   iframe.style.display = 'none';
   iframe.src = '';
@@ -1627,9 +2024,6 @@ function clearAll() {
   document.getElementById('scoringContainer').innerHTML = '';
   document.getElementById('scoringEmpty').style.display = 'block';
   document.getElementById('scoreUrlLabel').textContent = '未选择 URL';
-  
-  showToast('🔄 已清空所有数据');
-  setStatus('就绪');
 }
 
 // ==================== Helpers ====================
