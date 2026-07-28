@@ -10,7 +10,7 @@ GitHub Pages：<https://noplch0.github.io/rubrics-system/>
 
 ## 功能
 
-- 调用 OpenAI Chat Completions 兼容接口或 Responses API 生成 Rubrics
+- 调用 OpenAI Chat Completions 兼容接口、Responses API 或 Anthropic Messages API 生成 Rubrics
 - 配置并切换多组 API 预设
 - 通过多个 URL 标签页查看待评审页面
 - 逐项记录 Rubric 的通过状态、说明和评分结果
@@ -20,7 +20,7 @@ GitHub Pages：<https://noplch0.github.io/rubrics-system/>
 
 - Windows
 - Python 3，可使用 `python` 或 `py` 命令
-- 支持直接从浏览器调用的 OpenAI 兼容 API
+- 支持直接从浏览器调用且允许跨域的 OpenAI 兼容 API 或 Anthropic Messages API
 
 ## 本地启动
 
@@ -48,7 +48,7 @@ python -m http.server 8080 --bind 0.0.0.0 --directory .
 - 模型名称
 - System Prompt
 
-页面支持 OpenAI 兼容的 Chat Completions 格式和 Responses API 格式。API Key 保存在当前浏览器的 `localStorage` 中，并由浏览器直接发送到配置的接口，请仅在可信设备和可信接口上使用。若请求失败，请确认接口允许浏览器跨域访问。
+页面支持 OpenAI 兼容的 Chat Completions 格式、Responses API 格式和 Anthropic Messages API 格式。Anthropic 官方接口地址为 `https://api.anthropic.com/v1/messages`，类型选择 `Messages API`。API Key 保存在当前浏览器的 `localStorage` 中，并由浏览器直接发送到配置的接口，请仅在可信设备和可信接口上使用。若请求失败，请确认接口允许浏览器跨域访问。
 
 ## 使用提示词
 

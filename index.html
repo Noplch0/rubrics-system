@@ -802,6 +802,7 @@ textarea { min-height: 60px; line-height: 1.5; }
         <option value="">请选择 API 类型</option>
         <option value="openai-chat">OpenAI 兼容 (Chat Completions) — 适用 OpenAI / 火山方舟 / 硅基流动等</option>
         <option value="responses">Responses API — 适用 火山方舟 v3 /responses / OpenAI Responses</option>
+        <option value="messages">Messages API — 适用 Anthropic Claude 及兼容接口</option>
       </select>
       <div style="font-size:11px;color:#999;margin-top:4px;">💡 火山方舟用户：接口地址填 <code>https://ark.cn-beijing.volces.com/api/v3/responses</code>，类型选 "Responses API"</div>
     </div>
@@ -848,7 +849,7 @@ const state = {
   aiSettings: {
     apiKey: '',
     apiUrl: '',
-    apiType: '',  // '' | 'openai-chat' | 'responses'
+    apiType: '',  // '' | 'openai-chat' | 'responses' | 'messages'
     model: '',
     systemPrompt: ''
   },
@@ -901,7 +902,7 @@ function loadSettings() {
 
     if (typeof parsed.apiKey === 'string') state.aiSettings.apiKey = parsed.apiKey;
     if (typeof parsed.apiUrl === 'string') state.aiSettings.apiUrl = parsed.apiUrl;
-    if (parsed.apiType === 'openai-chat' || parsed.apiType === 'responses') {
+    if (parsed.apiType === 'openai-chat' || parsed.apiType === 'responses' || parsed.apiType === 'messages') {
       state.aiSettings.apiType = parsed.apiType;
     }
     if (typeof parsed.model === 'string') state.aiSettings.model = parsed.model;
@@ -920,7 +921,7 @@ function normalizeAiPreset(preset) {
     name: typeof preset.name === 'string' && preset.name.trim() ? preset.name.trim() : '未命名预设',
     apiKey: typeof preset.apiKey === 'string' ? preset.apiKey : '',
     apiUrl: typeof preset.apiUrl === 'string' ? preset.apiUrl : '',
-    apiType: preset.apiType === 'responses' || preset.apiType === 'openai-chat' ? preset.apiType : '',
+    apiType: ['openai-chat', 'responses', 'messages'].includes(preset.apiType) ? preset.apiType : '',
     model: typeof preset.model === 'string' ? preset.model : '',
     systemPrompt: typeof preset.systemPrompt === 'string' ? preset.systemPrompt : state.aiSettings.systemPrompt
   };
@@ -1624,6 +1625,13 @@ async function convertRubrics() {
         input: prompt,
         instructions: state.aiSettings.systemPrompt
       };
+    } else if (apiType === 'messages') {
+      requestBody = {
+        model: state.aiSettings.model,
+        max_tokens: 4096,
+        system: state.aiSettings.systemPrompt,
+        messages: [{ role: 'user', content: prompt }]
+      };
     } else {
       // OpenAI Chat Completions format (default, 兼容绝大多数 API)
       requestBody = {
@@ -1636,12 +1644,17 @@ async function convertRubrics() {
       };
     }
 
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiType === 'messages') {
+      headers['x-api-key'] = state.aiSettings.apiKey;
+      headers['anthropic-version'] = '2023-06-01';
+    } else {
+      headers['Authorization'] = `Bearer ${state.aiSettings.apiKey}`;
+    }
+
     const response = await fetch(state.aiSettings.apiUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${state.aiSettings.apiKey}`
-      },
+      headers,
       body: JSON.stringify(requestBody)
     });
 
@@ -1671,11 +1684,16 @@ async function convertRubrics() {
         content = c.text || c.value || '';
       }
     }
-    // 3. Simple content field
+    // 3. Anthropic Messages API: content[0].text
+    else if (Array.isArray(data.content)) {
+      const textItem = data.content.find(item => item.type === 'text' && typeof item.text === 'string');
+      content = textItem ? textItem.text : '';
+    }
+    // 4. Simple content field
     else if (typeof data.content === 'string') {
       content = data.content;
     }
-    // 4. Fallback
+    // 5. Fallback
     else {
       content = JSON.stringify(data);
     }
