@@ -1136,13 +1136,14 @@ function bindPersistenceListeners() {
 
 function restoreWorkspace() {
   const saved = loadWorkspaceFromStorage();
-  state.workspaces = saved && saved.workspaces.length
+  state.workspaces = saved && Array.isArray(saved.workspaces)
     ? saved.workspaces.map(createWorkspace)
     : [createWorkspace()];
   state.activeWorkspaceId = saved && state.workspaces.some(item => item.id === saved.activeWorkspaceId)
     ? saved.activeWorkspaceId
-    : state.workspaces[0].id;
-  applyActiveWorkspace();
+    : (state.workspaces[0] ? state.workspaces[0].id : '');
+  if (state.activeWorkspaceId) applyActiveWorkspace();
+  else resetWorkspaceView();
   renderWorkspaceTabs();
 }
 
@@ -1217,7 +1218,7 @@ function renderWorkspaceTabs() {
   document.getElementById('workspaceTabs').innerHTML = state.workspaces.map((workspace, index) => `
     <button class="workspace-tab${workspace.id === state.activeWorkspaceId ? ' active' : ''}" onclick="switchWorkspace('${workspace.id}')" title="${escapeHtml(workspace.title)}">
       <span class="workspace-tab-label">${index + 1}. ${escapeHtml(workspace.title)}</span>
-      ${state.workspaces.length > 1 ? `<span class="workspace-tab-close" role="button" onclick="event.stopPropagation();closeWorkspace('${workspace.id}')" title="关闭标签页">×</span>` : ''}
+      <span class="workspace-tab-close" role="button" onclick="event.stopPropagation();closeWorkspace('${workspace.id}')" title="关闭标签页">×</span>
     </button>`).join('');
 }
 
@@ -1242,16 +1243,36 @@ function addWorkspaceTab() {
 }
 
 function closeWorkspace(workspaceId) {
-  if (state.workspaces.length === 1) return;
-  captureActiveWorkspace();
   const index = state.workspaces.findIndex(item => item.id === workspaceId);
+  if (index < 0) return;
+
+  captureActiveWorkspace();
   state.workspaces.splice(index, 1);
   if (state.activeWorkspaceId === workspaceId) {
-    state.activeWorkspaceId = state.workspaces[Math.max(0, index - 1)].id;
-    applyActiveWorkspace();
+    const nextWorkspace = state.workspaces[Math.max(0, index - 1)];
+    state.activeWorkspaceId = nextWorkspace ? nextWorkspace.id : '';
+    if (nextWorkspace) applyActiveWorkspace();
+    else resetWorkspaceView();
   }
   renderWorkspaceTabs();
   saveWorkspaceToStorage();
+}
+
+function resetWorkspaceView() {
+  state.urls = [];
+  state.rubrics = [];
+  state.scores = {};
+  state.activeUrlIndex = -1;
+  state.rubricsCheck = { status: 'pending', reason: '尚未进行 AI 合规检查' };
+
+  document.getElementById('promptInput').value = '';
+  document.getElementById('urlInput').value = '';
+  document.getElementById('rubricsManualInput').value = '';
+  renderUrlTabs();
+  renderRubricsCheck();
+  renderRubrics();
+  renderScoring();
+  resetUrlViewer();
 }
 
 // ==================== URL Parsing ====================
@@ -1445,7 +1466,7 @@ async function importCsvFile(file) {
     if (!imported.length) throw new Error('CSV 中没有可导入的数据');
 
     captureActiveWorkspace();
-    const replaceEmpty = state.workspaces.length === 1 && isWorkspaceEmpty(state.workspaces[0]);
+    const replaceEmpty = state.workspaces.length === 0 || (state.workspaces.length === 1 && isWorkspaceEmpty(state.workspaces[0]));
     state.workspaces = replaceEmpty ? imported : state.workspaces.concat(imported);
     state.activeWorkspaceId = imported[0].id;
     workspaceIsCleared = false;
