@@ -129,6 +129,7 @@ body {
 }
 .workspace-tab-close:hover { color: var(--danger); }
 .workspace-tab-actions { display: flex; align-items: center; gap: 4px; }
+.workspace-tabs-bar.workspace-empty-hidden { display: none; }
 
 /* Buttons */
 .btn {
@@ -165,6 +166,20 @@ body {
   overflow: hidden;
   gap: 0;
 }
+.workspace-empty-state {
+  display: none;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 24px;
+}
+.workspace-empty-state .btn { text-decoration: none; }
+.main.workspace-empty .workspace-empty-state { display: flex; }
+.main.workspace-empty .left-panel,
+.main.workspace-empty .right-panel { display: none; }
+.bottom-bar.workspace-empty-hidden { display: none; }
 
 /* Left Panel */
 .left-panel {
@@ -663,7 +678,7 @@ textarea { min-height: 60px; line-height: 1.5; }
   </div>
 </header>
 
-<div class="workspace-tabs-bar">
+<div class="workspace-tabs-bar" id="workspaceTabsBar">
   <div class="workspace-tabs" id="workspaceTabs"></div>
   <div class="workspace-tab-actions">
     <button class="btn btn-ghost btn-sm" type="button" onclick="addWorkspaceTab()" title="新建标签页">＋</button>
@@ -673,7 +688,12 @@ textarea { min-height: 60px; line-height: 1.5; }
 </div>
 
 <!-- Main Content -->
-<div class="main">
+<div class="main" id="workspaceMain">
+  <div class="workspace-empty-state" id="workspaceEmptyState">
+    <a class="btn btn-outline" href="https://github.com/Noplch0/rubrics-system" target="_blank" rel="noopener noreferrer">访问 GitHub 仓库</a>
+    <button class="btn btn-primary" type="button" onclick="addWorkspaceTab()">建立新标签页</button>
+  </div>
+
   <!-- Left Panel -->
   <div class="left-panel">
     <!-- Prompt Section -->
@@ -739,7 +759,7 @@ textarea { min-height: 60px; line-height: 1.5; }
 </div>
 
 <!-- Bottom Bar -->
-<div class="bottom-bar">
+<div class="bottom-bar" id="bottomBar">
   <button class="btn btn-danger btn-sm" onclick="clearCurrentWorkspace()">清空工作区</button>
   <span class="divider"></span>
   <button class="btn btn-outline btn-sm" onclick="copyRubrics()">📋 复制 Rubrics</button>
@@ -1233,6 +1253,14 @@ function renderWorkspaceTabs() {
       <span class="workspace-tab-label">${index + 1}. ${escapeHtml(workspace.title)}</span>
       <span class="workspace-tab-close" role="button" onclick="event.stopPropagation();closeWorkspace('${workspace.id}')" title="关闭标签页">×</span>
     </button>`).join('');
+  updateWorkspaceVisibility();
+}
+
+function updateWorkspaceVisibility() {
+  const isEmpty = state.workspaces.length === 0;
+  document.getElementById('workspaceMain').classList.toggle('workspace-empty', isEmpty);
+  document.getElementById('workspaceTabsBar').classList.toggle('workspace-empty-hidden', isEmpty);
+  document.getElementById('bottomBar').classList.toggle('workspace-empty-hidden', isEmpty);
 }
 
 function switchWorkspace(workspaceId) {
