@@ -1,6 +1,12 @@
 # Rubrics 评判系统
 
-一个本地运行的前端评审工具，用于将需求 Prompt 转换为可验证的 Rubrics，并在同一页面中打开多个目标网页进行逐项评分。
+一个纯前端评审工具，用于将需求 Prompt 转换为可验证的 Rubrics，并在同一页面中打开多个目标网页进行逐项评分。
+
+## 在线使用
+
+GitHub Pages：<https://noplch0.github.io/rubrics-system/>
+
+> API Key 只保存在当前浏览器的 `localStorage` 中，并由浏览器直接发送到你配置的 API 地址。请勿在公共或不可信设备上保存密钥。
 
 ## 功能
 
@@ -10,13 +16,13 @@
 - 逐项记录 Rubric 的通过状态、说明和评分结果
 - 使用浏览器 `localStorage` 保存 AI 设置与当前工作区内容
 
-## 运行要求
+## 本地运行要求
 
 - Windows
 - Python 3，可使用 `python` 或 `py` 命令
 - 支持直接从浏览器调用的 OpenAI 兼容 API
 
-## 启动
+## 本地启动
 
 双击 `start-website.bat`，然后访问：
 
@@ -46,7 +52,7 @@ python -m http.server 8080 --bind 0.0.0.0 --directory .
 
 ## 使用提示词
 
-[`prompt.md`](prompt.md) 提供了一套面向前端代码生成任务的 Prompt 准入规则与 Rubrics 编写规范。使用时，将其内容复制到页面 AI 设置中的 System Prompt，然后输入待审核的需求 Prompt 生成结果。
+[`prompt.md`](prompt.md) 提供了一套面向前端代码生成任务的 Prompt 准入规则与 Rubrics 编写规范。新用户首次打开页面时，该文件内容会自动作为默认 System Prompt；API Key、API 地址、API 类型、模型名称等配置均默认为空，需要用户自行填写。
 
 模型应返回以下结构的 JSON：
 

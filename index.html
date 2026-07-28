@@ -779,6 +779,7 @@ textarea { min-height: 60px; line-height: 1.5; }
     <div class="form-group">
       <label>API 类型</label>
       <select id="settingApiType" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:#fafbfc;">
+        <option value="">请选择 API 类型</option>
         <option value="openai-chat">OpenAI 兼容 (Chat Completions) — 适用 OpenAI / 火山方舟 / 硅基流动等</option>
         <option value="responses">Responses API — 适用 火山方舟 v3 /responses / OpenAI Responses</option>
       </select>
@@ -790,7 +791,7 @@ textarea { min-height: 60px; line-height: 1.5; }
     </div>
     <div class="form-group">
       <label>System Prompt（系统级提示词）</label>
-      <textarea id="settingSystemPrompt" rows="4" placeholder="你是一个专业的评分标准制定专家...">你是一个专业的评分标准制定专家。请检查用户提供的 prompt 是否合规，并将其转换为清晰、可量化、可通过“是/否”判断的 Rubrics。仅输出合法 JSON，不要输出 Markdown 或其他文字，格式必须为：{"is_allow":true,"rubrics":["条目1","条目2"],"reason":""}。is_allow 表示是否合规；reason 表示判断理由，合规时可以为空；无论是否合规，rubrics 都必须提供有效条目。</textarea>
+      <textarea id="settingSystemPrompt" rows="4" placeholder="正在加载 prompt.md..."></textarea>
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeSettings()">取消</button>
@@ -826,22 +827,34 @@ const state = {
   },
   aiSettings: {
     apiKey: '',
-    apiUrl: 'https://api.openai.com/v1/chat/completions',
-    apiType: 'openai-chat',  // 'openai-chat' | 'responses'
-    model: 'gpt-4o',
-    systemPrompt: '你是一个专业的评分标准制定专家。请检查用户提供的 prompt 是否合规，并将其转换为清晰、可量化、可通过“是/否”判断的 Rubrics。仅输出合法 JSON，不要输出 Markdown 或其他文字，格式必须为：{"is_allow":true,"rubrics":["条目1","条目2"],"reason":""}。is_allow 表示是否合规；reason 表示判断理由，合规时可以为空；无论是否合规，rubrics 都必须提供有效条目。'
+    apiUrl: '',
+    apiType: '',  // '' | 'openai-chat' | 'responses'
+    model: '',
+    systemPrompt: ''
   },
   aiPresets: [],
   activeAiPresetId: ''
 };
 
 // ==================== Init ====================
-function init() {
+async function init() {
+  await loadDefaultSystemPrompt();
   loadSettings();
   applySettingsToForm();
   renderPresetSelects();
   restoreWorkspace();
   bindPersistenceListeners();
+}
+
+async function loadDefaultSystemPrompt() {
+  try {
+    const response = await fetch('./prompt.md', { cache: 'no-cache' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    state.aiSettings.systemPrompt = await response.text();
+  } catch (err) {
+    console.error('Unable to load prompt.md.', err);
+    showToast('⚠️ 无法加载默认 System Prompt');
+  }
 }
 
 // ==================== Settings ====================
@@ -887,7 +900,7 @@ function normalizeAiPreset(preset) {
     name: typeof preset.name === 'string' && preset.name.trim() ? preset.name.trim() : '未命名预设',
     apiKey: typeof preset.apiKey === 'string' ? preset.apiKey : '',
     apiUrl: typeof preset.apiUrl === 'string' ? preset.apiUrl : '',
-    apiType: preset.apiType === 'responses' ? 'responses' : 'openai-chat',
+    apiType: preset.apiType === 'responses' || preset.apiType === 'openai-chat' ? preset.apiType : '',
     model: typeof preset.model === 'string' ? preset.model : '',
     systemPrompt: typeof preset.systemPrompt === 'string' ? preset.systemPrompt : state.aiSettings.systemPrompt
   };
@@ -899,7 +912,7 @@ function createPresetId() {
 
 function ensureAiPreset() {
   if (state.aiPresets.length === 0) {
-    state.aiPresets.push({ id: createPresetId(), name: '默认配置', ...state.aiSettings });
+    state.aiPresets.push({ id: createPresetId(), name: '', ...state.aiSettings });
   }
   if (!state.aiPresets.some(preset => preset.id === state.activeAiPresetId)) {
     state.activeAiPresetId = state.aiPresets[0].id;
@@ -944,7 +957,7 @@ function applySettingsToForm() {
 
 function renderPresetSelects() {
   const options = state.aiPresets.map(preset => (
-    `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.name)}</option>`
+    `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.name || '未命名预设')}</option>`
   )).join('');
   ['headerPresetSelect', 'settingPresetSelect'].forEach(id => {
     const select = document.getElementById(id);
@@ -1563,6 +1576,9 @@ async function convertRubrics() {
   
   if (!state.aiSettings.apiKey) { showToast('⚠️ 请先在 AI 设置中配置 API Key'); return; }
   if (!state.aiSettings.apiUrl) { showToast('⚠️ 请先在 AI 设置中配置 API 地址'); return; }
+  if (!state.aiSettings.apiType) { showToast('⚠️ 请先在 AI 设置中选择 API 类型'); return; }
+  if (!state.aiSettings.model) { showToast('⚠️ 请先在 AI 设置中配置模型名称'); return; }
+  if (!state.aiSettings.systemPrompt) { showToast('⚠️ System Prompt 为空'); return; }
 
   const btn = document.getElementById('btnConvert');
   btn.disabled = true;
@@ -1570,7 +1586,7 @@ async function convertRubrics() {
   setStatus('正在调用 AI 转换 Rubrics...');
 
   try {
-    const apiType = state.aiSettings.apiType || 'openai-chat';
+    const apiType = state.aiSettings.apiType;
     let requestBody;
 
     if (apiType === 'responses') {
