@@ -12,6 +12,7 @@ GitHub Pages：<https://noplch0.github.io/rubrics-system/>
 
 - 调用 OpenAI Chat Completions 兼容接口、Responses API 或 Anthropic Messages API 生成 Rubrics
 - 配置并切换多组 API 预设
+- 使用 JSON 导出、导入全部 AI 设置；API Key 由导出密码通过 PBKDF2 派生密钥并使用 AES-GCM 加密
 - 通过多个 URL 标签页查看待评审页面
 - 逐项记录 Rubric 的通过状态、说明和评分结果
 - 使用浏览器 `localStorage` 保存 AI 设置与当前工作区内容
@@ -49,6 +50,8 @@ python -m http.server 8080 --bind 0.0.0.0 --directory .
 - System Prompt
 
 页面支持 OpenAI 兼容的 Chat Completions 格式、Responses API 格式和 Anthropic Messages API 格式。Anthropic 官方接口地址为 `https://api.anthropic.com/v1/messages`，类型选择 `Messages API`。API Key 保存在当前浏览器的 `localStorage` 中，并由浏览器直接发送到配置的接口，请仅在可信设备和可信接口上使用。若请求失败，请确认接口允许浏览器跨域访问。
+
+设置弹窗支持导出和导入 JSON。导出时必须设置至少 8 位密码；包括 API Key 在内的完整设置载荷会使用 PBKDF2-SHA-256（随机盐）派生的 AES-256-GCM 密钥加密，JSON 文件不包含密码或明文 API Key。导入时需输入相同密码，并会在确认后替换当前全部 AI 配置预设。请妥善保管导出密码，密码遗失后无法恢复文件内容。
 
 ## 使用提示词
 
