@@ -821,27 +821,11 @@ textarea { min-height: 60px; line-height: 1.5; }
         <button class="btn btn-outline btn-sm" type="button" onclick="document.getElementById('settingsFileInput').click()">⬆ 导入设置</button>
         <input id="settingsFileInput" type="file" accept="application/json,.json" hidden onchange="importSettingsFile(this.files[0]);this.value=''">
       </div>
-      <div style="font-size:11px;color:#999;margin-top:5px;">API Key 会使用密码加密后写入 JSON，密码不会保存到文件中。</div>
+      <div style="font-size:11px;color:#999;margin-top:5px;">导出的 JSON 包含明文 API Key，请勿分享或上传到公开位置。</div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeSettings()">取消</button>
       <button class="btn btn-primary" onclick="saveSettings()">💾 保存设置</button>
-    </div>
-  </div>
-</div>
-
-<!-- Settings Transfer Password Modal -->
-<div class="modal-overlay" id="settingsTransferModal">
-  <div class="modal" style="width:440px;">
-    <h2 id="settingsTransferTitle">🔐 导出设置</h2>
-    <div class="form-group">
-      <label id="settingsTransferPasswordLabel" for="settingsTransferPassword">导出密码</label>
-      <input id="settingsTransferPassword" type="password" autocomplete="new-password" placeholder="请输入密码">
-      <div id="settingsTransferHint" style="font-size:11px;color:#999;margin-top:5px;">请牢记此密码，密码不会写入 JSON，遗失后无法解密。</div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" type="button" onclick="closeSettingsTransfer()">取消</button>
-      <button class="btn btn-primary" id="settingsTransferConfirm" type="button" onclick="confirmSettingsTransfer()">导出并下载</button>
     </div>
   </div>
 </div>
@@ -855,17 +839,12 @@ const AI_SETTINGS_STORAGE_KEY = 'rubric-ai-settings';
 const WORKSPACE_STORAGE_KEY = 'rubric-workspace';
 const AI_SETTINGS_SCHEMA_VERSION = 2;
 const WORKSPACE_SCHEMA_VERSION = 2;
-const SETTINGS_TRANSFER_VERSION = 1;
-const SETTINGS_TRANSFER_ITERATIONS = 250000;
 const SETTINGS_TRANSFER_MAX_FILE_SIZE = 5 * 1024 * 1024;
 const SETTINGS_TRANSFER_MAX_PRESETS = 1000;
 const WORKSPACE_SAVE_DELAY = 300;
 let workspaceSaveTimer = null;
 let workspaceStorageWarningShown = false;
 let workspaceIsCleared = false;
-let settingsTransferAction = '';
-let pendingSettingsImport = null;
-let settingsTransferBusy = false;
 
 const state = {
   workspaces: [],
@@ -1111,39 +1090,27 @@ function captureAiSettingsFromForm() {
   Object.assign(activePreset, state.aiSettings);
 }
 
-function openSettingsTransfer(action) {
-  settingsTransferAction = action;
-  const isExport = action === 'export';
-  document.getElementById('settingsTransferTitle').textContent = isExport ? '🔐 导出设置' : '🔐 导入设置';
-  document.getElementById('settingsTransferPasswordLabel').textContent = isExport ? '导出密码' : '导入密码';
-  document.getElementById('settingsTransferPassword').value = '';
-  document.getElementById('settingsTransferPassword').placeholder = isExport ? '请输入至少 8 位密码' : '请输入导出时设置的密码';
-  document.getElementById('settingsTransferHint').textContent = isExport
-    ? '请牢记此密码，密码不会写入 JSON，遗失后无法解密。'
-    : '密码只在本次导入期间使用，不会保存到浏览器或导入文件。';
-  document.getElementById('settingsTransferConfirm').textContent = isExport ? '导出并下载' : '解密并导入';
-  document.getElementById('settingsTransferModal').classList.add('open');
-  document.getElementById('settingsTransferPassword').focus();
-}
-
-function closeSettingsTransfer(force = false) {
-  if (settingsTransferBusy && !force) {
-    showToast('⏳ 设置正在处理中，请稍候');
-    return;
-  }
-  document.getElementById('settingsTransferModal').classList.remove('open');
-  document.getElementById('settingsTransferPassword').value = '';
-  settingsTransferAction = '';
-  pendingSettingsImport = null;
-}
-
 function exportSettings() {
-  if (!window.crypto || !crypto.subtle) {
-    showToast('❌ 当前浏览器环境不支持加密导出');
-    return;
+  if (!confirm('导出文件将包含明文 API Key。请勿分享、上传到公开位置或提交到代码仓库。是否继续导出？')) return;
+  downloadSettings(createSettingsExportSnapshot());
+}
+
+function createSettingsExportSnapshot() {
+  const presets = state.aiPresets.map(preset => ({ ...preset }));
+  const activePreset = presets.find(preset => preset.id === state.activeAiPresetId);
+  if (activePreset) {
+    activePreset.name = document.getElementById('settingPresetName').value.trim() || '未命名预设';
+    activePreset.apiKey = document.getElementById('settingApiKey').value.trim();
+    activePreset.apiUrl = document.getElementById('settingApiUrl').value.trim();
+    activePreset.apiType = document.getElementById('settingApiType').value;
+    activePreset.model = document.getElementById('settingModel').value.trim();
+    activePreset.systemPrompt = document.getElementById('settingSystemPrompt').value.trim();
   }
-  captureAiSettingsFromForm();
-  openSettingsTransfer('export');
+  return {
+    version: AI_SETTINGS_SCHEMA_VERSION,
+    activePresetId: state.activeAiPresetId,
+    presets
+  };
 }
 
 async function importSettingsFile(file) {
@@ -1151,103 +1118,22 @@ async function importSettingsFile(file) {
   try {
     if (file.size > SETTINGS_TRANSFER_MAX_FILE_SIZE) throw new Error('文件不能超过 5 MB');
     const parsed = JSON.parse(await file.text());
-    validateSettingsTransferFile(parsed);
-    pendingSettingsImport = parsed;
-    openSettingsTransfer('import');
+    importSettings(parsed);
   } catch (err) {
     console.error('Settings import file error:', err);
     showToast(`❌ 设置文件无效：${err.message}`);
   }
 }
 
-async function confirmSettingsTransfer() {
-  const password = document.getElementById('settingsTransferPassword').value;
-  if (!password) { showToast('⚠️ 请输入密码'); return; }
-  if (settingsTransferAction === 'export' && password.length < 8) {
-    showToast('⚠️ 导出密码至少需要 8 位');
-    return;
-  }
-
-  const confirmButton = document.getElementById('settingsTransferConfirm');
-  settingsTransferBusy = true;
-  confirmButton.disabled = true;
-  try {
-    if (settingsTransferAction === 'export') await downloadEncryptedSettings(password);
-    else if (settingsTransferAction === 'import') await decryptAndImportSettings(password, pendingSettingsImport);
-  } catch (err) {
-    console.error('Settings transfer error:', err);
-    if (err && err.code === 'SETTINGS_STORAGE_FAILED') {
-      showToast('❌ 导入失败：浏览器未能保存设置，原设置未改变');
-    } else {
-      showToast(settingsTransferAction === 'import'
-        ? '❌ 解密失败：密码错误或文件已损坏'
-        : `❌ 设置导出失败：${err.message}`);
-    }
-  } finally {
-    settingsTransferBusy = false;
-    confirmButton.disabled = false;
-  }
-}
-
-async function deriveSettingsTransferKey(password, salt, iterations = SETTINGS_TRANSFER_ITERATIONS) {
-  const passwordKey = await crypto.subtle.importKey(
-    'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']
-  );
-  return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
-    passwordKey,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
-  );
-}
-
-function bytesToBase64(bytes) {
-  let binary = '';
-  bytes.forEach(byte => { binary += String.fromCharCode(byte); });
-  return btoa(binary);
-}
-
-function base64ToBytes(value) {
-  if (typeof value !== 'string' || !value) throw new Error('加密字段缺失');
-  const binary = atob(value);
-  return Uint8Array.from(binary, char => char.charCodeAt(0));
-}
-
-function validateSettingsTransferFile(data) {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('最外层必须是 JSON 对象');
-  if (data.type !== 'rubric-ai-settings') throw new Error('不是 Rubrics AI 设置文件');
-  if (data.version !== SETTINGS_TRANSFER_VERSION) throw new Error('不支持的设置文件版本');
-  if (data.algorithm !== 'AES-GCM' || data.kdf !== 'PBKDF2' || data.hash !== 'SHA-256') throw new Error('不支持的加密格式');
-  if (!Number.isInteger(data.iterations) || data.iterations < 100000 || data.iterations > 1000000) throw new Error('加密参数无效');
-  const salt = base64ToBytes(data.salt);
-  const iv = base64ToBytes(data.iv);
-  base64ToBytes(data.ciphertext);
-  if (salt.length !== 16 || iv.length !== 12) throw new Error('加密随机数无效');
-}
-
-async function downloadEncryptedSettings(password) {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await deriveSettingsTransferKey(password, salt);
-  const payload = JSON.stringify({
-    version: AI_SETTINGS_SCHEMA_VERSION,
-    activePresetId: state.activeAiPresetId,
-    presets: state.aiPresets
-  });
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv }, key, new TextEncoder().encode(payload)
-  );
+function downloadSettings(settingsSnapshot) {
+  if (!settingsSnapshot) throw new Error('没有可导出的设置');
   const transferFile = {
     type: 'rubric-ai-settings',
-    version: SETTINGS_TRANSFER_VERSION,
-    algorithm: 'AES-GCM',
-    kdf: 'PBKDF2',
-    hash: 'SHA-256',
-    iterations: SETTINGS_TRANSFER_ITERATIONS,
-    salt: bytesToBase64(salt),
-    iv: bytesToBase64(iv),
-    ciphertext: bytesToBase64(new Uint8Array(ciphertext))
+    version: AI_SETTINGS_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    presetCount: settingsSnapshot.presets.length,
+    activePresetId: settingsSnapshot.activePresetId,
+    presets: settingsSnapshot.presets
   };
   const blobUrl = URL.createObjectURL(new Blob([JSON.stringify(transferFile, null, 2)], { type: 'application/json' }));
   const link = document.createElement('a');
@@ -1257,26 +1143,29 @@ async function downloadEncryptedSettings(password) {
   link.click();
   link.remove();
   URL.revokeObjectURL(blobUrl);
-  closeSettingsTransfer(true);
-  showToast('✅ 加密设置已导出');
+  showToast('✅ 设置已导出，请妥善保管文件');
 }
 
-async function decryptAndImportSettings(password, transferFile) {
-  validateSettingsTransferFile(transferFile);
-  const salt = base64ToBytes(transferFile.salt);
-  const iv = base64ToBytes(transferFile.iv);
-  const key = await deriveSettingsTransferKey(password, salt, transferFile.iterations);
-  const plaintext = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv }, key, base64ToBytes(transferFile.ciphertext)
-  );
-  const imported = JSON.parse(new TextDecoder().decode(plaintext));
-  if (!imported || imported.version !== AI_SETTINGS_SCHEMA_VERSION || !Array.isArray(imported.presets)) {
+function importSettings(imported) {
+  if (!imported || typeof imported !== 'object' || Array.isArray(imported) || imported.type !== 'rubric-ai-settings' || imported.version !== AI_SETTINGS_SCHEMA_VERSION || !Array.isArray(imported.presets)) {
     throw new Error('设置内容格式无效');
   }
   if (imported.presets.length > SETTINGS_TRANSFER_MAX_PRESETS) throw new Error('配置预设数量过多');
-  const normalizedPresets = imported.presets.map(normalizeAiPreset);
+  if (imported.presets.some(preset => !preset || typeof preset !== 'object' || Array.isArray(preset))) {
+    throw new Error('配置预设格式无效');
+  }
+  const presetIds = new Set();
+  const normalizedPresets = imported.presets.map(preset => {
+    const normalized = normalizeAiPreset(preset);
+    if (presetIds.has(normalized.id)) normalized.id = createPresetId();
+    presetIds.add(normalized.id);
+    return normalized;
+  });
   if (normalizedPresets.length === 0) throw new Error('设置文件中没有可用预设');
-  if (!confirm('导入设置会替换当前所有 AI 配置预设，是否继续？')) return;
+  if (!confirm(`将导入 ${normalizedPresets.length} 个预设并替换当前全部 AI 设置，是否继续？`)) {
+    showToast('已取消导入，当前设置未改变');
+    return;
+  }
 
   const previousPresets = state.aiPresets;
   const previousActivePresetId = state.activeAiPresetId;
@@ -1289,35 +1178,25 @@ async function decryptAndImportSettings(password, transferFile) {
     state.aiPresets = previousPresets;
     state.activeAiPresetId = previousActivePresetId;
     state.aiSettings = previousAiSettings;
-    const error = new Error('浏览器未能保存导入的设置');
-    error.code = 'SETTINGS_STORAGE_FAILED';
-    throw error;
+    throw new Error('浏览器未能保存导入的设置，原设置未改变');
   }
   applySettingsToForm();
   renderPresetSelects();
   setApiKeyVisibility(false);
-  closeSettingsTransfer(true);
-  showToast('✅ 设置已解密并导入');
+  showToast(`✅ 已导入 ${normalizedPresets.length} 个设置预设`);
 }
 
 // Close modal on overlay click
 document.addEventListener('click', function(e) {
-  if (e.target.id === 'settingsTransferModal' && e.target.classList.contains('open')) {
-    closeSettingsTransfer();
-  } else if (e.target.id === 'settingsModal' && e.target.classList.contains('open')) {
+  if (e.target.id === 'settingsModal' && e.target.classList.contains('open')) {
     closeSettings();
   }
 });
 
-// Close modal with Escape key and submit password with Enter
+// Close modal with Escape key
 document.addEventListener('keydown', function(e) {
-  const transferModal = document.getElementById('settingsTransferModal');
-  if (e.key === 'Escape' && transferModal.classList.contains('open')) {
-    closeSettingsTransfer();
-  } else if (e.key === 'Escape' && document.getElementById('settingsModal').classList.contains('open')) {
+  if (e.key === 'Escape' && document.getElementById('settingsModal').classList.contains('open')) {
     closeSettings();
-  } else if (e.key === 'Enter' && transferModal.classList.contains('open') && e.target.id === 'settingsTransferPassword') {
-    confirmSettingsTransfer();
   }
 });
 
