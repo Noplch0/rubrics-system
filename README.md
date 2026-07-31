@@ -20,24 +20,30 @@ GitHub Pages：<https://noplch0.github.io/rubrics-system/>
 ## 本地运行要求
 
 - Windows
-- Python 3，可使用 `python` 或 `py` 命令
+- Node.js（包含 npm）
 - 支持直接从浏览器调用且允许跨域的 OpenAI 兼容 API 或 Anthropic Messages API
 
 ## 本地启动
 
-双击 `start-website.bat`，然后访问：
+首次运行先在项目目录安装依赖：
+
+```powershell
+npm install
+```
+
+然后双击 `start-website.bat`，或运行：
+
+```text
+npm start
+```
+
+启动后访问：
 
 ```text
 http://127.0.0.1:8080/
 ```
 
-命令行启动方式：
-
-```powershell
-python -m http.server 8080 --bind 0.0.0.0 --directory .
-```
-
-使用期间请保持服务器窗口运行。启动脚本会同时显示局域网访问地址。
+使用期间请保持服务器窗口运行。启动脚本会显示局域网访问地址；服务器监听 `0.0.0.0:8080`。
 
 ## AI 配置
 
@@ -67,27 +73,19 @@ python -m http.server 8080 --bind 0.0.0.0 --directory .
 }
 ```
 
-## 开机自启
+## 清理旧版自启动
 
-以 PowerShell 运行：
-
-```powershell
-.\install-autostart.ps1
-```
-
-该脚本会创建名为 `RubricSystemWebsiteServer` 的计划任务，在当前 Windows 用户登录时隐藏启动本地服务器。运行以下脚本可移除计划任务：
+项目当前不再配置登录自启。若曾经安装过旧版自启动，可运行以下脚本删除旧的计划任务和 `8080` 防火墙规则：
 
 ```powershell
 .\uninstall-autostart.ps1
 ```
-
-后台服务日志写入项目目录下的 `server.log`。
 
 ## 项目文件
 
 - `index.html`：单页应用及全部前端逻辑
 - `prompt.md`：Prompt 审核和 Rubrics 生成规范
 - `start-website.bat`：前台启动本地服务器
-- `start-website-hidden.ps1`：后台启动本地服务器并记录日志
-- `install-autostart.ps1`：安装登录自启计划任务
-- `uninstall-autostart.ps1`：移除登录自启计划任务
+- `package.json`：npm 启动脚本和本地服务器依赖
+- `package-lock.json`：锁定 npm 依赖版本
+- `uninstall-autostart.ps1`：清理旧版登录自启计划任务和防火墙规则

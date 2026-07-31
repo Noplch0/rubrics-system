@@ -1,5 +1,7 @@
 .claude/
 .vscode/
+.venv/
+node_modules/
 *.log
 
 # Local secrets and credentials
