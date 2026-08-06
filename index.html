@@ -205,19 +205,65 @@ body {
 
 /* Left Panel */
 .left-panel {
-  width: 680px;
-  min-width: 600px;
+  width: var(--left-panel-width, 680px);
+  min-width: 400px;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border);
   background: var(--surface);
   overflow: hidden;
+  flex-shrink: 0;
 }
 .panel-section {
   padding: 14px 16px;
   border-bottom: 1px solid var(--border);
 }
 .panel-section:last-child { border-bottom: none; }
+.prompt-panel { flex: 0 0 180px; min-height: 132px; overflow: auto; }
+.url-panel { flex: 0 0 150px; min-height: 120px; overflow: auto; }
+.rubrics-panel { flex: 0 0 300px; min-height: 170px; overflow: auto; }
+.scoring-panel { flex: 1 1 160px; min-height: 120px; overflow-y: auto; }
+.main-resizer,
+.panel-resizer {
+  position: relative;
+  flex-shrink: 0;
+  background: transparent;
+  touch-action: none;
+  user-select: none;
+  z-index: 2;
+}
+.main-resizer {
+  width: 7px;
+  cursor: col-resize;
+  margin-left: -4px;
+  margin-right: -3px;
+}
+.panel-resizer {
+  height: 7px;
+  cursor: row-resize;
+  margin-top: -4px;
+  margin-bottom: -3px;
+}
+.main-resizer::after,
+.panel-resizer::after {
+  content: '';
+  position: absolute;
+  background: var(--border);
+  transition: background var(--transition);
+}
+.main-resizer::after { inset: 0 3px; }
+.panel-resizer::after { inset: 3px 0; }
+.main-resizer:hover::after,
+.main-resizer.is-resizing::after,
+.panel-resizer:hover::after,
+.panel-resizer.is-resizing::after { background: var(--primary); }
+body.is-resizing,
+body.is-resizing * {
+  cursor: inherit !important;
+  user-select: none !important;
+}
+body.resizing-column { cursor: col-resize; }
+body.resizing-row { cursor: row-resize; }
 .section-title {
   font-size: 13px;
   font-weight: 600;
@@ -690,6 +736,8 @@ textarea { min-height: 60px; line-height: 1.5; }
   .main { flex-direction: column; }
   .left-panel { width: 100%; min-width: 0; max-height: 50%; }
   .right-panel { min-width: 0; min-height: 300px; }
+  .main-resizer,
+  .panel-resizer { display: none; }
 }
 </style>
 </head>
@@ -724,13 +772,14 @@ textarea { min-height: 60px; line-height: 1.5; }
   <!-- Left Panel -->
   <div class="left-panel">
     <!-- Prompt Section -->
-    <div class="panel-section">
+    <div class="panel-section prompt-panel">
       <div class="section-title">📝 评分 Prompt</div>
       <textarea class="prompt-area" id="promptInput" placeholder="在此输入评分 prompt（将被发送给 AI 转换为 Rubrics）..."></textarea>
     </div>
+    <div class="panel-resizer" data-resize-panel="prompt-panel" role="separator" aria-label="调整评分 Prompt 区域高度" aria-orientation="horizontal" tabindex="0"></div>
 
     <!-- URL List Section -->
-    <div class="panel-section">
+    <div class="panel-section url-panel">
       <div class="section-title">🔗 URL 列表</div>
       <textarea class="url-area" id="urlInput" placeholder="输入 URL 列表，格式：[url1,url2,...,urln]"></textarea>
       <div style="display:flex;gap:6px;margin-top:6px;">
@@ -738,9 +787,10 @@ textarea { min-height: 60px; line-height: 1.5; }
         <button class="btn btn-outline btn-sm" onclick="parseUrls()">🔍 解析 URL</button>
       </div>
     </div>
+    <div class="panel-resizer" data-resize-panel="url-panel" role="separator" aria-label="调整 URL 列表区域高度" aria-orientation="horizontal" tabindex="0"></div>
 
     <!-- Rubrics Section -->
-    <div class="panel-section rubrics-panel" style="max-height:300px;overflow-y:auto;">
+    <div class="panel-section rubrics-panel">
       <div class="section-title">
         <span>📋 Rubrics</span>
         <span class="section-title-controls">
@@ -759,9 +809,10 @@ textarea { min-height: 60px; line-height: 1.5; }
       </div>
       <textarea id="rubricsManualInput" placeholder="或在此手动粘贴 Rubrics（每行一条）..." style="margin-top:8px;min-height:120px;" oninput="onManualRubricsInput()"></textarea>
     </div>
+    <div class="panel-resizer" data-resize-panel="rubrics-panel" role="separator" aria-label="调整 Rubrics 区域高度" aria-orientation="horizontal" tabindex="0"></div>
 
     <!-- Scoring Section -->
-    <div class="panel-section scoring-panel scroll-area" style="flex:1;min-height:120px;">
+    <div class="panel-section scoring-panel scroll-area">
       <div class="section-title">
         <span>📊 评分</span>
         <span class="section-title-controls">
@@ -775,6 +826,7 @@ textarea { min-height: 60px; line-height: 1.5; }
       <div id="scoringContainer" style="overflow-x:auto;"></div>
     </div>
   </div>
+  <div class="main-resizer" id="mainResizer" role="separator" aria-label="调整左侧栏宽度" aria-orientation="vertical" tabindex="0"></div>
 
   <!-- Right Panel - URL Viewer -->
   <div class="right-panel">
@@ -874,6 +926,7 @@ textarea { min-height: 60px; line-height: 1.5; }
 // ==================== State ====================
 const AI_SETTINGS_STORAGE_KEY = 'rubric-ai-settings';
 const WORKSPACE_STORAGE_KEY = 'rubric-workspace';
+const LAYOUT_STORAGE_KEY = 'rubric-layout';
 const AI_SETTINGS_SCHEMA_VERSION = 2;
 const WORKSPACE_SCHEMA_VERSION = 2;
 const SETTINGS_TRANSFER_MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -882,6 +935,14 @@ const WORKSPACE_SAVE_DELAY = 300;
 let workspaceSaveTimer = null;
 let workspaceStorageWarningShown = false;
 let workspaceIsCleared = false;
+const layout = {
+  leftPanelWidth: 680,
+  panelHeights: {
+    'prompt-panel': 180,
+    'url-panel': 150,
+    'rubrics-panel': 300
+  }
+};
 
 const state = {
   workspaces: [],
@@ -913,6 +974,116 @@ async function init() {
   renderPresetSelects();
   restoreWorkspace();
   bindPersistenceListeners();
+  initLayoutResizers();
+}
+
+function initLayoutResizers() {
+  restoreLayout();
+  const mainResizer = document.getElementById('mainResizer');
+  const panelResizers = document.querySelectorAll('.panel-resizer');
+
+  mainResizer.addEventListener('pointerdown', event => startLayoutResize(event, 'width'));
+  mainResizer.addEventListener('keydown', event => handleLayoutResizeKey(event, 'width'));
+  panelResizers.forEach(resizer => {
+    const panelName = resizer.dataset.resizePanel;
+    resizer.addEventListener('pointerdown', event => startLayoutResize(event, panelName));
+    resizer.addEventListener('keydown', event => handleLayoutResizeKey(event, panelName));
+  });
+  window.addEventListener('resize', constrainLayoutToViewport);
+}
+
+function constrainLayoutToViewport() {
+  if (window.innerWidth <= 900) return;
+  updateLayoutSize('width', layout.leftPanelWidth);
+  Object.entries(layout.panelHeights).forEach(([panelName, height]) => updateLayoutSize(panelName, height));
+}
+
+function startLayoutResize(event, target) {
+  if (window.innerWidth <= 900 || event.button !== 0) return;
+  event.preventDefault();
+  const resizer = event.currentTarget;
+  const initialSize = target === 'width'
+    ? layout.leftPanelWidth
+    : layout.panelHeights[target];
+  const startPosition = target === 'width' ? event.clientX : event.clientY;
+
+  resizer.setPointerCapture(event.pointerId);
+  resizer.classList.add('is-resizing');
+  document.body.classList.add('is-resizing', target === 'width' ? 'resizing-column' : 'resizing-row');
+
+  const onPointerMove = moveEvent => {
+    const position = target === 'width' ? moveEvent.clientX : moveEvent.clientY;
+    updateLayoutSize(target, initialSize + position - startPosition);
+  };
+  const onPointerUp = upEvent => {
+    resizer.releasePointerCapture(upEvent.pointerId);
+    resizer.classList.remove('is-resizing');
+    document.body.classList.remove('is-resizing', 'resizing-column', 'resizing-row');
+    document.removeEventListener('pointermove', onPointerMove);
+    document.removeEventListener('pointerup', onPointerUp);
+    saveLayout();
+  };
+
+  document.addEventListener('pointermove', onPointerMove);
+  document.addEventListener('pointerup', onPointerUp, { once: true });
+}
+
+function handleLayoutResizeKey(event, target) {
+  const isWidth = target === 'width';
+  const decreaseKey = isWidth ? 'ArrowLeft' : 'ArrowUp';
+  const increaseKey = isWidth ? 'ArrowRight' : 'ArrowDown';
+  if (event.key !== decreaseKey && event.key !== increaseKey) return;
+
+  event.preventDefault();
+  const step = event.shiftKey ? 40 : 20;
+  const currentSize = isWidth ? layout.leftPanelWidth : layout.panelHeights[target];
+  updateLayoutSize(target, currentSize + (event.key === increaseKey ? step : -step));
+  saveLayout();
+}
+
+function updateLayoutSize(target, value) {
+  if (target === 'width') {
+    const main = document.getElementById('workspaceMain');
+    const maxWidth = Math.max(400, main.clientWidth - 407);
+    layout.leftPanelWidth = Math.min(maxWidth, Math.max(400, value));
+    document.documentElement.style.setProperty('--left-panel-width', `${layout.leftPanelWidth}px`);
+    return;
+  }
+
+  const panel = document.querySelector(`.${target}`);
+  const leftPanel = document.querySelector('.left-panel');
+  const minimumHeights = {
+    'prompt-panel': 132,
+    'url-panel': 120,
+    'rubrics-panel': 170
+  };
+  const otherPanelHeights = Object.entries(layout.panelHeights)
+    .filter(([panelName]) => panelName !== target)
+    .reduce((total, [, height]) => total + height, 0);
+  const maxHeight = Math.max(minimumHeights[target], leftPanel.clientHeight - otherPanelHeights - 141);
+  layout.panelHeights[target] = Math.min(maxHeight, Math.max(minimumHeights[target], value));
+  panel.style.flexBasis = `${layout.panelHeights[target]}px`;
+}
+
+function restoreLayout() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY));
+    if (saved && Number.isFinite(saved.leftPanelWidth)) layout.leftPanelWidth = saved.leftPanelWidth;
+    Object.keys(layout.panelHeights).forEach(panelName => {
+      if (saved && Number.isFinite(saved.panelHeights?.[panelName])) {
+        layout.panelHeights[panelName] = saved.panelHeights[panelName];
+      }
+    });
+  } catch (_) {}
+
+  updateLayoutSize('width', layout.leftPanelWidth);
+  Object.entries(layout.panelHeights).forEach(([panelName, height]) => updateLayoutSize(panelName, height));
+}
+
+function saveLayout() {
+  try {
+    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+  } catch (_) {}
 }
 
 async function loadDefaultSystemPrompt() {
