@@ -159,6 +159,28 @@ body {
 .btn-danger { background: var(--danger); color: #fff; }
 .btn-danger:hover { background: #c0392b; }
 
+/* Font size controls */
+.section-title-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.font-size-range {
+  width: 88px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.font-size-value {
+  min-width: 32px;
+  color: var(--text-secondary);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Main Layout */
 .main {
   display: flex;
@@ -366,9 +388,10 @@ textarea { min-height: 60px; line-height: 1.5; }
 .iframe-toolbar button:hover { text-decoration: underline; }
 
 /* Rubrics Display */
+.rubrics-panel { --rubrics-font-size: 13px; }
 .rubrics-list {
   list-style: none;
-  font-size: 13px;
+  font-size: var(--rubrics-font-size);
 }
 .rubrics-list li {
   padding: 6px 10px;
@@ -387,10 +410,11 @@ textarea { min-height: 60px; line-height: 1.5; }
 }
 .rubrics-empty {
   color: #bbb;
-  font-size: 13px;
+  font-size: var(--rubrics-font-size, 13px);
   text-align: center;
   padding: 20px;
 }
+.rubrics-panel #rubricsManualInput { font-size: var(--rubrics-font-size); }
 .rubrics-check {
   display: flex;
   align-items: flex-start;
@@ -400,7 +424,7 @@ textarea { min-height: 60px; line-height: 1.5; }
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: #f8f9fb;
-  font-size: 12px;
+  font-size: var(--rubrics-font-size, 12px);
   line-height: 1.5;
 }
 .rubrics-check-icon {
@@ -428,9 +452,11 @@ textarea { min-height: 60px; line-height: 1.5; }
 }
 
 /* Scoring Table */
+.scoring-panel { --scoring-font-size: 13px; }
+.scoring-panel .rubrics-empty { font-size: var(--scoring-font-size); }
 .scoring-table {
   width: 100%;
-  font-size: 12px;
+  font-size: var(--scoring-font-size);
   border-collapse: collapse;
 }
 .scoring-table th {
@@ -440,7 +466,7 @@ textarea { min-height: 60px; line-height: 1.5; }
   border-bottom: 2px solid var(--border);
   font-weight: 600;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: calc(var(--scoring-font-size) - 1px);
   position: sticky;
   top: 0;
   z-index: 1;
@@ -466,7 +492,7 @@ textarea { min-height: 60px; line-height: 1.5; }
   resize: vertical;
   overflow: hidden;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--scoring-font-size);
   background: #fff;
 }
 .rubric-row-delete {
@@ -491,7 +517,7 @@ textarea { min-height: 60px; line-height: 1.5; }
   padding: 3px 12px;
   border: none;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--scoring-font-size);
   font-weight: 600;
   background: #fff;
   transition: all var(--transition);
@@ -505,7 +531,7 @@ textarea { min-height: 60px; line-height: 1.5; }
   padding: 4px 8px;
   border: 1.5px solid var(--danger);
   border-radius: 4px;
-  font-size: 11px;
+  font-size: calc(var(--scoring-font-size) - 1px);
   line-height: 1.5;
   resize: vertical;
   overflow: hidden;
@@ -683,6 +709,7 @@ textarea { min-height: 60px; line-height: 1.5; }
   <div class="workspace-tab-actions">
     <button class="btn btn-ghost btn-sm" type="button" onclick="addWorkspaceTab()" title="新建标签页">＋</button>
     <button class="btn btn-outline btn-sm" type="button" onclick="document.getElementById('csvFileInput').click()">导入 CSV</button>
+    <button class="btn btn-danger btn-sm" type="button" onclick="closeAllWorkspaces()" title="关闭所有打开的标签页">关闭所有标签页</button>
     <input id="csvFileInput" type="file" accept=".csv,text/csv" hidden onchange="importCsvFile(this.files[0]);this.value=''">
   </div>
 </div>
@@ -713,9 +740,14 @@ textarea { min-height: 60px; line-height: 1.5; }
     </div>
 
     <!-- Rubrics Section -->
-    <div class="panel-section" style="max-height:300px;overflow-y:auto;">
+    <div class="panel-section rubrics-panel" style="max-height:300px;overflow-y:auto;">
       <div class="section-title">
         <span>📋 Rubrics</span>
+        <span class="section-title-controls">
+          <label for="rubricsFontSize" title="调整 Rubrics 字体大小">字号</label>
+          <input id="rubricsFontSize" class="font-size-range" type="range" min="10" max="20" step="1" value="13" oninput="updateRubricsFontSize(this.value)" aria-label="调整 Rubrics 字体大小">
+          <output id="rubricsFontSizeValue" class="font-size-value">13px</output>
+        </span>
         <span class="count" id="rubricCount">0 条</span>
       </div>
       <div class="rubrics-check pending" id="rubricsCheckResult" role="status" aria-live="polite">
@@ -725,13 +757,18 @@ textarea { min-height: 60px; line-height: 1.5; }
       <div id="rubricsDisplay">
         <div class="rubrics-empty">尚未生成 Rubrics，请点击"转换 Rubrics"或手动粘贴</div>
       </div>
-      <textarea id="rubricsManualInput" placeholder="或在此手动粘贴 Rubrics（每行一条）..." style="margin-top:8px;min-height:120px;font-size:12px;" oninput="onManualRubricsInput()"></textarea>
+      <textarea id="rubricsManualInput" placeholder="或在此手动粘贴 Rubrics（每行一条）..." style="margin-top:8px;min-height:120px;" oninput="onManualRubricsInput()"></textarea>
     </div>
 
     <!-- Scoring Section -->
-    <div class="panel-section scroll-area" style="flex:1;min-height:120px;">
+    <div class="panel-section scoring-panel scroll-area" style="flex:1;min-height:120px;">
       <div class="section-title">
         <span>📊 评分</span>
+        <span class="section-title-controls">
+          <label for="scoringFontSize" title="调整评分字体大小">字号</label>
+          <input id="scoringFontSize" class="font-size-range" type="range" min="10" max="20" step="1" value="13" oninput="updateScoringFontSize(this.value)" aria-label="调整评分字体大小">
+          <output id="scoringFontSizeValue" class="font-size-value">13px</output>
+        </span>
         <span class="count" id="scoreUrlLabel">未选择 URL</span>
       </div>
       <div class="rubrics-empty" id="scoringEmpty">请先解析 URL 并生成 Rubrics</div>
@@ -1411,6 +1448,21 @@ function closeWorkspace(workspaceId) {
   saveWorkspaceToStorage();
 }
 
+function closeAllWorkspaces() {
+  if (state.workspaces.length === 0) return;
+  if (!confirm(`确定关闭全部 ${state.workspaces.length} 个标签页吗？未保存的内容也会被关闭。`)) return;
+
+  captureActiveWorkspace();
+  clearTimeout(workspaceSaveTimer);
+  workspaceSaveTimer = null;
+  state.workspaces = [];
+  state.activeWorkspaceId = '';
+  workspaceIsCleared = false;
+  resetWorkspaceView();
+  renderWorkspaceTabs();
+  saveWorkspaceToStorage();
+}
+
 function resetWorkspaceView() {
   state.urls = [];
   state.rubrics = [];
@@ -2036,6 +2088,22 @@ function finishRubricEdit() {
   renderRubrics();
 }
 
+function updateRubricsFontSize(value) {
+  const fontSize = Math.min(20, Math.max(10, Number(value) || 13));
+  const panel = document.querySelector('.rubrics-panel');
+  const valueEl = document.getElementById('rubricsFontSizeValue');
+  if (panel) panel.style.setProperty('--rubrics-font-size', `${fontSize}px`);
+  if (valueEl) valueEl.textContent = `${fontSize}px`;
+}
+
+function updateScoringFontSize(value) {
+  const fontSize = Math.min(20, Math.max(10, Number(value) || 13));
+  const panel = document.querySelector('.scoring-panel');
+  const valueEl = document.getElementById('scoringFontSizeValue');
+  if (panel) panel.style.setProperty('--scoring-font-size', `${fontSize}px`);
+  if (valueEl) valueEl.textContent = `${fontSize}px`;
+}
+
 function addRubric() {
   state.rubrics.push('新 Rubric');
   state.urls.forEach((_, urlIdx) => {
@@ -2204,7 +2272,6 @@ function clearCurrentWorkspace() {
   captureActiveWorkspace();
   renderWorkspaceTabs();
   saveWorkspaceToStorage();
-
   showToast('已清空当前工作区');
   setStatus('就绪');
 }
