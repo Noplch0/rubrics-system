@@ -14,6 +14,7 @@ GitHub Pages：<https://noplch0.github.io/rubrics-system/>
 - 配置并切换多组 API 预设
 - 使用 JSON 导出、导入全部 AI 设置，导出文件包含明文 API Key
 - 通过多个 URL 标签页查看待评审页面
+- 预览页面触发网页内下载时显示提醒；跨域页面请使用“外部打开”后在新标签页下载
 - 逐项记录 Rubric 的通过状态、说明和评分结果
 - 使用浏览器 `localStorage` 保存 AI 设置与当前工作区内容
 

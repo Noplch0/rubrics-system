@@ -433,6 +433,28 @@ textarea { min-height: 60px; line-height: 1.5; }
 .iframe-toolbar a:hover,
 .iframe-toolbar button:hover { text-decoration: underline; }
 
+.iframe-download-warning {
+  display: none;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fff8e6;
+  border-bottom: 1px solid #f0d58a;
+  color: #805b00;
+  font-size: 12px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+.iframe-download-warning.show { display: flex; }
+.iframe-download-warning strong { white-space: nowrap; }
+.download-warning-modal { width: 460px; }
+.download-warning-modal p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 /* Rubrics Display */
 .rubrics-panel { --rubrics-font-size: 13px; }
 .rubrics-list {
@@ -840,6 +862,10 @@ textarea { min-height: 60px; line-height: 1.5; }
       <button type="button" onclick="copyCurrentLink()" title="复制当前展示链接">📋 复制链接</button>
       <button type="button" onclick="downloadCurrentHtml()" title="下载当前网页 HTML">⬇ 下载代码</button>
     </div>
+    <div class="iframe-download-warning" id="iframeDownloadWarning" role="status" aria-live="polite">
+      <strong>⚠️ 网页内下载受限</strong>
+      <span>当前页面无法检测网页内下载行为，请点击右上角“外部打开”后在新标签页操作。</span>
+    </div>
     <div class="iframe-container" id="iframeContainer">
       <div class="iframe-overlay">选择左侧 URL 标签以加载页面</div>
       <iframe id="urlIframe" style="display:none;" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation"></iframe>
@@ -919,6 +945,17 @@ textarea { min-height: 60px; line-height: 1.5; }
   </div>
 </div>
 
+<!-- Embedded page download warning modal -->
+<div class="modal-overlay" id="downloadWarningModal">
+  <div class="modal download-warning-modal" role="dialog" aria-modal="true" aria-labelledby="downloadWarningTitle">
+    <h2 id="downloadWarningTitle">⚠️ 检测到网页下载</h2>
+    <p>当前网页尝试下载文件，嵌入预览不会执行下载，请通过右上角“外部打开”后重试。</p>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="downloadWarningCloseButton" type="button" onclick="closeDownloadWarning()">知道了</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
@@ -932,6 +969,7 @@ const WORKSPACE_SCHEMA_VERSION = 2;
 const SETTINGS_TRANSFER_MAX_FILE_SIZE = 5 * 1024 * 1024;
 const SETTINGS_TRANSFER_MAX_PRESETS = 1000;
 const WORKSPACE_SAVE_DELAY = 300;
+const iframeDownloadDocuments = new WeakSet();
 let workspaceSaveTimer = null;
 let workspaceStorageWarningShown = false;
 let workspaceIsCleared = false;
@@ -972,6 +1010,7 @@ async function init() {
   loadSettings();
   applySettingsToForm();
   renderPresetSelects();
+  initIframeDownloadGuard();
   restoreWorkspace();
   bindPersistenceListeners();
   initLayoutResizers();
@@ -1399,12 +1438,19 @@ document.addEventListener('click', function(e) {
   if (e.target.id === 'settingsModal' && e.target.classList.contains('open')) {
     closeSettings();
   }
+  if (e.target.id === 'downloadWarningModal' && e.target.classList.contains('open')) {
+    closeDownloadWarning();
+  }
 });
 
 // Close modal with Escape key
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape' && document.getElementById('settingsModal').classList.contains('open')) {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('settingsModal').classList.contains('open')) {
     closeSettings();
+  }
+  if (document.getElementById('downloadWarningModal').classList.contains('open')) {
+    closeDownloadWarning();
   }
 });
 
@@ -1651,6 +1697,71 @@ function resetWorkspaceView() {
   resetUrlViewer();
 }
 
+// ==================== Embedded page download guard ====================
+function initIframeDownloadGuard() {
+  document.getElementById('urlIframe').addEventListener('load', handleIframeLoad);
+}
+
+function setIframeDownloadWarning(isVisible) {
+  document.getElementById('iframeDownloadWarning').classList.toggle('show', isVisible);
+}
+
+function showDownloadWarning() {
+  const modal = document.getElementById('downloadWarningModal');
+  modal.classList.add('open');
+  requestAnimationFrame(() => document.getElementById('downloadWarningCloseButton').focus());
+}
+
+function closeDownloadWarning() {
+  document.getElementById('downloadWarningModal').classList.remove('open');
+}
+
+function isDownloadLink(link) {
+  const tagName = String(link.tagName || '').toLowerCase();
+  if (tagName !== 'a' && tagName !== 'area') return false;
+  if (link.hasAttribute('download')) return true;
+
+  const href = (link.getAttribute('href') || '').trim().toLowerCase();
+  return href.startsWith('blob:') || href.startsWith('data:');
+}
+
+function getDownloadLinkFromEvent(event) {
+  const path = typeof event.composedPath === 'function' ? event.composedPath() : [event.target];
+  return path.find(node => node && node.nodeType === 1 && isDownloadLink(node)) || null;
+}
+
+function handleIframeDownloadClick(event) {
+  const link = getDownloadLinkFromEvent(event);
+  if (!link) return;
+
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  showDownloadWarning();
+}
+
+function installIframeDownloadGuard(iframeDocument) {
+  if (iframeDownloadDocuments.has(iframeDocument)) return;
+  iframeDocument.addEventListener('click', handleIframeDownloadClick, true);
+  iframeDownloadDocuments.add(iframeDocument);
+}
+
+function handleIframeLoad() {
+  const iframe = document.getElementById('urlIframe');
+  const currentUrl = getCurrentUrl();
+  setIframeDownloadWarning(false);
+  closeDownloadWarning();
+
+  if (!currentUrl || iframe.dataset.url !== currentUrl) return;
+
+  try {
+    const iframeDocument = iframe.contentDocument;
+    if (!iframeDocument || !iframeDocument.documentElement) throw new Error('iframe document is unavailable');
+    installIframeDownloadGuard(iframeDocument);
+  } catch (_) {
+    setIframeDownloadWarning(true);
+  }
+}
+
 // ==================== URL Parsing ====================
 function extractUrls(rawText) {
   const urlRegex = /https?:\/\/[^\s,\[\]"']+/g;
@@ -1718,6 +1829,8 @@ function loadUrl(index) {
   const urlDisplay = document.getElementById('currentUrlDisplay');
   const externalLink = document.getElementById('openExternalLink');
   
+  setIframeDownloadWarning(false);
+  closeDownloadWarning();
   iframe.style.display = 'block';
   overlay.style.display = 'none';
   toolbar.style.display = 'flex';
@@ -1726,6 +1839,7 @@ function loadUrl(index) {
   
   // Set sandbox to allow more interaction
   iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation');
+  iframe.dataset.url = url;
   iframe.src = url;
   
   // Update scoring header
@@ -1737,6 +1851,9 @@ function refreshCurrentUrl() {
   if (state.activeUrlIndex < 0 || state.activeUrlIndex >= state.urls.length) return;
 
   const iframe = document.getElementById('urlIframe');
+  setIframeDownloadWarning(false);
+  closeDownloadWarning();
+  iframe.dataset.url = state.urls[state.activeUrlIndex];
   iframe.src = state.urls[state.activeUrlIndex];
   showToast('🔄 当前网页已刷新');
   setStatus(`已刷新 URL ${state.activeUrlIndex + 1}`);
@@ -2449,6 +2566,9 @@ function clearCurrentWorkspace() {
 
 function resetUrlViewer() {
   const iframe = document.getElementById('urlIframe');
+  setIframeDownloadWarning(false);
+  closeDownloadWarning();
+  delete iframe.dataset.url;
   iframe.style.display = 'none';
   iframe.src = '';
   document.querySelector('.iframe-overlay').style.display = 'flex';
