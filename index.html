@@ -447,6 +447,21 @@ textarea { min-height: 60px; line-height: 1.5; }
 }
 .iframe-download-warning.show { display: flex; }
 .iframe-download-warning strong { white-space: nowrap; }
+.iframe-download-warning span { flex: 1; min-width: 0; }
+.iframe-download-warning-close {
+  flex-shrink: 0;
+  margin: -2px -4px 0 0;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  opacity: .75;
+}
+.iframe-download-warning-close:hover,
+.iframe-download-warning-close:focus-visible { opacity: 1; }
 .download-warning-modal { width: 460px; }
 .download-warning-modal p {
   margin: 0;
@@ -789,6 +804,7 @@ textarea { min-height: 60px; line-height: 1.5; }
   <div class="workspace-empty-state" id="workspaceEmptyState">
     <a class="btn btn-outline" href="https://github.com/Noplch0/rubrics-system" target="_blank" rel="noopener noreferrer">访问 GitHub 仓库</a>
     <button class="btn btn-primary" type="button" onclick="addWorkspaceTab()">建立新标签页</button>
+    <button class="btn btn-outline" type="button" onclick="document.getElementById('csvFileInput').click()">导入 CSV</button>
   </div>
 
   <!-- Left Panel -->
@@ -865,6 +881,7 @@ textarea { min-height: 60px; line-height: 1.5; }
     <div class="iframe-download-warning" id="iframeDownloadWarning" role="status" aria-live="polite">
       <strong>⚠️ 网页内下载受限</strong>
       <span>当前页面无法检测网页内下载行为，请点击右上角“外部打开”后在新标签页操作。</span>
+      <button class="iframe-download-warning-close" type="button" onclick="closeIframeDownloadWarning()" aria-label="关闭下载提示" title="关闭下载提示">×</button>
     </div>
     <div class="iframe-container" id="iframeContainer">
       <div class="iframe-overlay">选择左侧 URL 标签以加载页面</div>
@@ -1704,6 +1721,10 @@ function initIframeDownloadGuard() {
 
 function setIframeDownloadWarning(isVisible) {
   document.getElementById('iframeDownloadWarning').classList.toggle('show', isVisible);
+}
+
+function closeIframeDownloadWarning() {
+  setIframeDownloadWarning(false);
 }
 
 function showDownloadWarning() {
